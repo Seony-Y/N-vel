@@ -17,7 +17,7 @@ export function UserMenu() {
         <Link href="/login" className="rounded-lg px-3 py-2 font-medium hover:bg-zinc-100 dark:hover:bg-zinc-800">
           로그인
         </Link>
-        <Link href="/signup" className="rounded-lg bg-violet-600 px-3 py-2 font-semibold text-white hover:bg-violet-700">
+        <Link href="/signup" className="rounded-lg bg-red-600 px-3 py-2 font-semibold text-white hover:bg-red-700">
           회원가입
         </Link>
       </div>

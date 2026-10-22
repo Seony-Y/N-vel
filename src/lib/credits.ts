@@ -8,7 +8,7 @@ import { creditLedger, user } from "@/db/schema";
  * 잔액이 음수가 되거나 내역과 어긋나지 않는다.
  */
 
-export const SIGNUP_BONUS = 700;
+export { SIGNUP_BONUS } from "./credits-config";
 
 type Reason = (typeof creditLedger.reason.enumValues)[number];
 

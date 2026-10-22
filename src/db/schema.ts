@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import {
   bigint,
   boolean,
@@ -9,6 +10,7 @@ import {
   text,
   timestamp,
   unique,
+  uniqueIndex,
   uuid,
 } from "drizzle-orm/pg-core";
 
@@ -55,6 +57,14 @@ export const account = pgTable("account", {
   password: text("password"),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+});
+
+// 가입·로그인 요청 횟수 제한 (Better Auth). 서버가 여러 대여도 한도가 공유되도록 DB 에 둔다
+export const rateLimit = pgTable("rate_limit", {
+  id: text("id").primaryKey(),
+  key: text("key").notNull().unique(),
+  count: integer("count").notNull(),
+  lastRequest: bigint("last_request", { mode: "number" }).notNull(),
 });
 
 export const verification = pgTable("verification", {
@@ -284,5 +294,9 @@ export const creditLedger = pgTable(
     note: text("note").notNull().default(""),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("credit_ledger_user_idx").on(t.userId, t.createdAt)],
+  (t) => [
+    index("credit_ledger_user_idx").on(t.userId, t.createdAt),
+    // 가입 보너스는 한 사람에게 한 번만 (동시에 두 번 인증돼도 두 번 지급되지 않게)
+    uniqueIndex("credit_ledger_signup_bonus_once").on(t.userId).where(sql`${t.reason} = 'signup_bonus'`),
+  ],
 );

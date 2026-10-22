@@ -10,6 +10,8 @@ const ERROR_MESSAGES: Record<string, string> = {
   USER_ALREADY_EXISTS_USE_ANOTHER_EMAIL: "이미 가입된 이메일입니다.",
   PASSWORD_TOO_SHORT: `비밀번호는 ${PASSWORD_MIN}자 이상이어야 합니다.`,
   PASSWORD_TOO_LONG: `비밀번호는 ${PASSWORD_MAX}자 이하여야 합니다.`,
+  EMAIL_NOT_VERIFIED: "이메일 인증이 필요해요. 가입할 때 받은 메일의 인증 버튼을 눌러 주세요. (인증 메일을 다시 보냈어요)",
+  DISPOSABLE_EMAIL: "임시 메일 주소로는 가입할 수 없어요.",
 };
 
 /** Better Auth 오류 코드를 한국어 안내 문구로 바꾼다 */
@@ -18,6 +20,9 @@ export function authErrorMessage(error: { code?: string; status?: number } | nul
   if (error?.status === 429) return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
   return "문제가 발생했습니다. 잠시 후 다시 시도해 주세요.";
 }
+
+/** 이메일 인증 링크를 누른 뒤 도착하는 화면 */
+export const VERIFIED_CALLBACK = "/welcome";
 
 /** 로그인 후 돌아갈 주소. 외부 사이트로 보내지 않도록 내부 경로만 허용 */
 export function safeRedirect(next: string | null | undefined): string {

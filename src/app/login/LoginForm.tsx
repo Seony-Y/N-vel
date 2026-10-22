@@ -4,14 +4,16 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { AuthCard, Field, FormError, SubmitButton } from "@/components/auth/AuthCard";
+import { ResendVerification } from "@/components/auth/ResendVerification";
 import { authClient } from "@/lib/auth-client";
-import { authErrorMessage, safeRedirect } from "@/lib/auth-rules";
+import { authErrorMessage, safeRedirect, VERIFIED_CALLBACK } from "@/lib/auth-rules";
 
 export function LoginForm() {
   const router = useRouter();
   const next = safeRedirect(useSearchParams().get("next"));
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
+  const [unverified, setUnverified] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -19,12 +21,11 @@ export function LoginForm() {
     setPending(true);
     setError(null);
 
-    const { error } = await authClient.signIn.email({
-      email: String(form.get("email")),
-      password: String(form.get("password")),
-    });
+    const email = String(form.get("email"));
+    const { error } = await authClient.signIn.email({ email, password: String(form.get("password")), callbackURL: VERIFIED_CALLBACK });
 
     if (error) {
+      setUnverified(error.code === "EMAIL_NOT_VERIFIED" ? email : null);
       setError(authErrorMessage(error));
       setPending(false);
       return;
@@ -40,7 +41,7 @@ export function LoginForm() {
       footer={
         <>
           아직 계정이 없나요?{" "}
-          <Link href={`/signup${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-medium text-violet-600 hover:underline">
+          <Link href={`/signup${next !== "/" ? `?next=${encodeURIComponent(next)}` : ""}`} className="font-medium text-red-600 hover:underline">
             회원가입
           </Link>
         </>
@@ -51,6 +52,7 @@ export function LoginForm() {
         <Field label="비밀번호" name="password" type="password" autoComplete="current-password" required />
         <FormError message={error} />
         <SubmitButton pending={pending}>로그인</SubmitButton>
+        {unverified && <ResendVerification email={unverified} />}
       </form>
     </AuthCard>
   );
