@@ -10,6 +10,9 @@ import { logEvent } from "@/lib/ai/usage";
 
 const Body = z.object({ file: z.unknown(), ai: z.boolean().default(true) });
 
+/** 호스팅의 함수 최대 실행 시간 (초). AI 검수는 40초 안팎 걸린다 */
+export const maxDuration = 120;
+
 /** AI 검수는 비용이 드는 기능이라 시간당 횟수를 제한한다 */
 const REVIEWS_PER_HOUR = 10;
 

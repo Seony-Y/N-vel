@@ -17,6 +17,9 @@ const Body = z.object({
   presentClueId: z.uuid().optional(), // 용의자에게 증거 제시
 });
 
+/** 호스팅의 함수 최대 실행 시간 (초). 응답이 길어져도 끊기지 않도록 */
+export const maxDuration = 60;
+
 /** 스트림 끝에 붙는 구분자. 그 뒤에 JSON { state, found } 가 온다 */
 const TRAILER = "\u001e";
 

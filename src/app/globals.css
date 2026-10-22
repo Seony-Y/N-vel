@@ -25,6 +25,25 @@ body {
   font-family: var(--font-sans);
 }
 
+/* 누를 수 있는 것은 손가락 커서로 (Tailwind v4 는 버튼 커서를 기본 화살표로 둔다) */
+button:not(:disabled),
+[role="button"],
+[role="menuitem"],
+select:not(:disabled),
+summary,
+label:has(> input[type="checkbox"]),
+label:has(> input[type="radio"]),
+input[type="checkbox"]:not(:disabled),
+input[type="radio"]:not(:disabled) {
+  cursor: pointer;
+}
+button:disabled,
+select:disabled,
+input:disabled,
+textarea:disabled {
+  cursor: not-allowed;
+}
+
 /* 선택 상자: 브라우저 기본 화살표는 오른쪽 끝에 붙어 있어 직접 그린다 (오른쪽에서 0.75rem 띄움) */
 select {
   appearance: none;
