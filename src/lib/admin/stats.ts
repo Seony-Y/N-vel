@@ -63,7 +63,7 @@ export async function perUser(days: number) {
       started: sql<number>`count(*)`.as("started"),
       finished: sql<number>`count(*) filter (where ${playSessions.ending} in ('correct', 'partial', 'wrong'))`.as("finished"),
       solved: sql<number>`count(*) filter (where ${playSessions.ending} = 'correct')`.as("solved"),
-      credits: sql<number>`coalesce(sum(${playSessions.creditsUsed}), 0)`.as("credits"),
+      credits: sql<number>`coalesce(sum(${playSessions.creditsUsed}), 0)`.as("credits_spent"),
     })
     .from(playSessions)
     .where(gte(playSessions.createdAt, from))

@@ -57,7 +57,9 @@ export function PlayScreen({
   );
 
   const bottomRef = useRef<HTMLDivElement>(null);
-  useEffect(() => bottomRef.current?.scrollIntoView({ behavior: "smooth" }), [threadMessages.length, streaming, target]);
+  useEffect(() => {
+    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [threadMessages.length, streaming, target]);
 
   function flash(text: string) {
     setToast(text);
