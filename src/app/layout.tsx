@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "N-vel",
-  description: "캐릭터와 함께 만드는 이야기",
+  description: "AI 용의자를 심문하고 단서를 모아 범인을 지목하는 추리 게임",
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {
