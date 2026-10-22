@@ -1,0 +1,1 @@
+ALTER TABLE "cases" ADD COLUMN "ending_give_up" text DEFAULT '' NOT NULL;

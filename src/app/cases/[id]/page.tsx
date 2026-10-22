@@ -1,0 +1,143 @@
+import Link from "next/link";
+import { notFound } from "next/navigation";
+import { Suspense } from "react";
+import { Difficulty, RATING_LABEL } from "@/components/CaseCard";
+import { CaseActions } from "@/components/CaseActions";
+import { SandboxedHtml } from "@/components/SandboxedHtml";
+import { SiteHeader } from "@/components/SiteHeader";
+import { CHAT_MODELS, DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
+import { getUserId, isAdmin } from "@/lib/auth";
+import { getBalance } from "@/lib/credits";
+import { mySessionsFor } from "@/lib/game/catalog";
+import { endingText } from "@/lib/game/endings";
+import { canPlay, loadCase } from "@/lib/game/load";
+import { publicCase } from "@/lib/game/public";
+
+export default function CasePage({ params }: PageProps<"/cases/[id]">) {
+  return (
+    <>
+      <SiteHeader />
+      <Suspense fallback={<p className="p-8 text-sm text-zinc-400">불러오는 중...</p>}>
+        <CaseDetail params={params} />
+      </Suspense>
+    </>
+  );
+}
+
+async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params"] }) {
+  const { id } = await params;
+  const [userId, full] = await Promise.all([getUserId(), loadCase(id).catch(() => null)]);
+  if (!full || !canPlay(full.case, userId)) notFound();
+
+  const c = publicCase(full);
+  const [sessions, balance] = await Promise.all([userId ? mySessionsFor(userId, id) : [], getBalance(userId)]);
+  const ongoing = sessions.find((s) => s.status === "playing");
+  const finished = sessions.filter((s) => s.status === "finished");
+  const isOwner = !!userId && full.case.ownerId === userId;
+  const admin = !isOwner && (await isAdmin(userId));
+
+  return (
+    <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+      {(isOwner || admin) && (
+        <div className="mb-3 flex items-center justify-between rounded-xl bg-zinc-100 px-4 py-2.5 text-sm dark:bg-zinc-800">
+          <span>{admin ? "🛡 관리자" : full.case.isPublic ? "🌐 공개 중인 내 사건" : "🔒 비공개 사건 (나만 볼 수 있어요)"}</span>
+          <span className="flex gap-3">
+            <Link href={`/cases/${id}/answer`} className="font-medium text-red-600 hover:underline">
+              정답지
+            </Link>
+            {isOwner && (
+              <Link href={`/cases/${id}/edit`} className="font-medium text-red-600 hover:underline">
+                수정하기
+              </Link>
+            )}
+          </span>
+        </div>
+      )}
+      <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
+        {c.introHtml ? (
+          <SandboxedHtml title={`${c.title} 소개`} code={c.introHtml} className="h-80 w-full border-0" />
+        ) : (
+          <div className="bg-gradient-to-br from-zinc-800 via-zinc-900 to-red-950 px-6 py-10 text-white">
+            <div className="flex gap-1.5 text-[11px] font-semibold">
+              {c.isOfficial && <span className="rounded bg-red-600 px-1.5 py-0.5">공식</span>}
+              <span className="rounded bg-white/20 px-1.5 py-0.5">{RATING_LABEL[c.rating]}</span>
+            </div>
+            <h1 className="mt-3 text-3xl font-bold">{c.title}</h1>
+            <p className="mt-2 text-zinc-300">{c.tagline}</p>
+          </div>
+        )}
+
+        <div className="space-y-6 p-6">
+          <div className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-zinc-500">
+            <span>
+              난이도 <Difficulty value={c.difficulty} />
+            </span>
+            <span>약 {c.estimatedMinutes}분</span>
+            {c.maxActions && <span>행동 {c.maxActions}회</span>}
+            {c.warningTags.map((t) => (
+              <span key={t}>#{t}</span>
+            ))}
+          </div>
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500">사건 개요</h2>
+            <p className="whitespace-pre-wrap leading-relaxed">{c.briefing}</p>
+          </section>
+
+          {c.victim && (
+            <section>
+              <h2 className="mb-2 text-sm font-semibold text-zinc-500">피해자</h2>
+              <p className="leading-relaxed">{c.victim}</p>
+            </section>
+          )}
+
+          <section>
+            <h2 className="mb-2 text-sm font-semibold text-zinc-500">용의자</h2>
+            <ul className="grid gap-2 sm:grid-cols-2">
+              {c.suspects.map((s) => (
+                <li key={s.id} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                  <div className="font-medium">
+                    {s.name}
+                    {s.age && <span className="ml-1 text-sm font-normal text-zinc-400">{s.age}세</span>}
+                  </div>
+                  <div className="text-xs text-zinc-500">{s.role}</div>
+                  <p className="mt-1 line-clamp-2 text-sm text-zinc-600 dark:text-zinc-400">{s.profile}</p>
+                </li>
+              ))}
+            </ul>
+          </section>
+
+          {finished.some((s) => s.ending === "correct") && <p className="text-sm font-medium text-emerald-600">✅ 해결한 사건이에요. 다시 도전해서 더 높은 점수를 노려 보세요.</p>}
+          <CaseActions
+            caseId={id}
+            ongoingId={ongoing?.id ?? null}
+            lastFinishedId={finished[0]?.id ?? null}
+            loggedIn={!!userId}
+            models={CHAT_MODELS.map(({ id, label, credits }) => ({ id, label, credits }))}
+            defaultModel={DEFAULT_CHAT_MODEL}
+            balance={balance}
+          />
+
+          {finished.length > 0 && (
+            <section>
+              <h2 className="mb-2 text-sm font-semibold text-zinc-500">내 기록 ({finished.length}회)</h2>
+              <ul className="space-y-1 text-sm">
+                {finished.map((s) => (
+                  <li key={s.id}>
+                    <Link href={`/play/${s.id}/result`} className="flex justify-between rounded-lg px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                      <span>{s.updatedAt.toLocaleDateString("ko-KR")}</span>
+                      <span>
+                        {endingText(s.ending)}
+                        {s.ending !== "gaveup" && ` · ${s.score}점`} <span className="text-zinc-400">결과 보기 ›</span>
+                      </span>
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+            </section>
+          )}
+        </div>
+      </article>
+    </main>
+  );
+}
