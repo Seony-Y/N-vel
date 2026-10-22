@@ -12,7 +12,8 @@
     "db:studio": "drizzle-kit studio",
     "check": "node scripts/check-connection.mjs",
     "seed": "tsx scripts/seed.ts",
-    "admin": "tsx scripts/admin.ts"
+    "admin": "tsx scripts/admin.ts",
+    "test-account": "tsx scripts/create-test-account.ts"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^1.1.0",

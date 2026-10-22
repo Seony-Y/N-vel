@@ -39,6 +39,22 @@ export function verificationEmail(name: string, url: string, bonus: number) {
   };
 }
 
+export function resetPasswordEmail(name: string, url: string) {
+  const safeName = escape(name);
+  return {
+    subject: "[N-vel] 비밀번호 재설정",
+    text: `${name}님, 비밀번호 재설정을 요청하셨어요.\n아래 링크에서 새 비밀번호를 정해 주세요. (1시간 동안 유효)\n\n${url}\n\n요청하지 않았다면 이 메일을 무시하세요. 비밀번호는 바뀌지 않아요.`,
+    html: `<!doctype html><html><body style="margin:0;background:#f4f4f5;font-family:'Apple SD Gothic Neo','Malgun Gothic',sans-serif">
+<table width="100%" cellpadding="0" cellspacing="0"><tr><td align="center" style="padding:32px 16px">
+<table width="480" cellpadding="0" cellspacing="0" style="max-width:480px;background:#ffffff;border-radius:16px;padding:32px">
+<tr><td style="font-size:22px;font-weight:700;color:#18181b">N-vel</td></tr>
+<tr><td style="padding-top:20px;font-size:16px;color:#18181b;line-height:1.6">${safeName}님, 비밀번호 재설정을 요청하셨어요.<br>아래 버튼을 눌러 새 비밀번호를 정해 주세요.</td></tr>
+<tr><td style="padding:28px 0"><a href="${escape(url)}" style="display:inline-block;background:#dc2626;color:#ffffff;text-decoration:none;font-weight:600;padding:14px 28px;border-radius:12px">비밀번호 재설정</a></td></tr>
+<tr><td style="font-size:13px;color:#71717a;line-height:1.6">링크는 1시간 동안 유효해요.<br><span style="word-break:break-all">${escape(url)}</span><br><br>요청하지 않았다면 이 메일을 무시하세요. 비밀번호는 바뀌지 않아요.</td></tr>
+</table></td></tr></table></body></html>`,
+  };
+}
+
 /** 일회용(임시) 메일 도메인. 가입 보너스를 노린 대량 가입을 줄이기 위해 막는다 */
 const DISPOSABLE = new Set([
   "mailinator.com", "guerrillamail.com", "guerrillamail.net", "sharklasers.com", "10minutemail.com", "10minutemail.net",

@@ -23,6 +23,7 @@ const MENU = [
   { href: "/my/plays", label: "🔎 내 수사" },
   { href: "/my/cases", label: "✏️ 사건 만들기" },
   { href: "/my/credits", label: "💎 내 크레딧" },
+  { href: "/my/account", label: "⚙️ 계정 설정" },
 ];
 
 /** 로그인했을 때: "OO님 ▾" 을 누르면 메뉴가 열린다. 바깥을 누르거나 Esc 로 닫힌다 */

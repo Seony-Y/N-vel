@@ -15,6 +15,7 @@ Next.js 16 + Neon(PostgreSQL) + Drizzle + Better Auth + Claude API. 기획은 [d
    npm run dev          # http://localhost:3001
    npm run check        # Neon·Claude API 연결 확인
    npm run admin -- <이메일>   # 관리자 지정 (--remove 로 해제)
+   npm run test-account        # 이메일 로그인용 테스트 계정 (정보는 .env.local 의 TEST_ACCOUNT_*)
    ```
 
 `.env.local` 의 `MOCK_AI=true` 이면 Claude 를 호출하지 않고 테스트 응답을 보낸다 (비용 0).
@@ -64,8 +65,10 @@ src/lib/ai/            모델 목록, 테스트 응답, 사용량 기록
 
 ## 가입·크레딧
 
-- 가입하면 인증 메일이 간다. 메일의 버튼을 눌러야 로그인할 수 있고, 그때 가입 보너스 700 크레딧을 받는다 (한 사람 한 번)
-- `RESEND_API_KEY` 가 비어 있으면 메일을 보내지 않고 **서버 콘솔에 인증 링크를 찍는다** (개발용)
+- **새 가입은 구글 로그인만** (GOOGLE_CLIENT_ID/SECRET). 가입 즉시 보너스 700 크레딧 (한 사람 한 번)
+- 이메일·비밀번호 로그인은 기존 계정(운영자, 테스트 계정)용. 같은 이메일로 구글 로그인하면 같은 계정에 연결된다
+- 비밀번호 찾기·재설정은 이메일 계정만 (메일 발송: Resend. 키가 없으면 서버 콘솔에 링크 출력)
+- 회원 탈퇴: 계정 설정에서 확인 문구 입력 + 최근 15분 안에 로그인한 세션만. 모든 데이터 삭제
 - 임시 메일 도메인 가입 차단, 한 IP 에서 시간당 가입 5회·로그인 분당 10회 제한 (DB 의 rate_limit 테이블)
 - 조사·심문 1회마다 모델별 크레딧 차감 (AI 호출 전에 차감, 오류 나면 환불). 잔액이 모자라면 행동 불가
 - 모든 잔액 변경은 credit_ledger 에 기록. 관리자는 사용자 화면에서 지급·회수 가능

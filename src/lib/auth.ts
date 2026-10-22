@@ -9,15 +9,32 @@ import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { PASSWORD_MAX, PASSWORD_MIN } from "./auth-rules";
 import { changeCredits, SIGNUP_BONUS } from "./credits";
-import { isDisposableEmail, sendEmail, verificationEmail } from "./email";
+import { isDisposableEmail, resetPasswordEmail, sendEmail, verificationEmail } from "./email";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
     provider: "pg",
     schema: { user: schema.user, session: schema.session, account: schema.account, verification: schema.verification, rateLimit: schema.rateLimit },
   }),
-  // 이메일 인증을 마쳐야 로그인할 수 있다 (가짜 이메일로 보너스를 받아가는 것을 막기 위해)
-  emailAndPassword: { enabled: true, minPasswordLength: PASSWORD_MIN, maxPasswordLength: PASSWORD_MAX, requireEmailVerification: true },
+  // 새 가입은 구글로만 받는다. 이메일·비밀번호 로그인은 기존 계정(운영자, 테스트 계정)용으로 남겨 둔다
+  emailAndPassword: {
+    enabled: true,
+    disableSignUp: true,
+    minPasswordLength: PASSWORD_MIN,
+    maxPasswordLength: PASSWORD_MAX,
+    requireEmailVerification: true,
+    revokeSessionsOnPasswordReset: true, // 비밀번호를 바꾸면 다른 기기의 로그인은 모두 끊는다
+    sendResetPassword: async ({ user, url }) => {
+      await sendEmail({ to: user.email, ...resetPasswordEmail(user.name, url) });
+    },
+  },
+  // 구글 로그인. 같은 이메일의 기존 계정(이메일 인증됨)이 있으면 그 계정에 자동으로 연결된다
+  socialProviders: {
+    ...(process.env.GOOGLE_CLIENT_ID &&
+      process.env.GOOGLE_CLIENT_SECRET && {
+        google: { clientId: process.env.GOOGLE_CLIENT_ID, clientSecret: process.env.GOOGLE_CLIENT_SECRET, prompt: "select_account" as const },
+      }),
+  },
   emailVerification: {
     sendOnSignUp: true,
     sendOnSignIn: true, // 인증 안 된 계정으로 로그인하면 메일을 다시 보낸다
@@ -31,7 +48,6 @@ export const auth = betterAuth({
       await grantSignupBonus(user.id);
     },
   },
-  // 소셜 로그인(구글, 카카오 등)은 나중에 socialProviders 에 추가
   databaseHooks: {
     user: {
       create: {
@@ -39,6 +55,10 @@ export const auth = betterAuth({
           if (isDisposableEmail(u.email)) {
             throw new APIError("BAD_REQUEST", { message: "임시 메일 주소로는 가입할 수 없어요", code: "DISPOSABLE_EMAIL" });
           }
+        },
+        // 구글처럼 이메일이 이미 확인된 채로 만들어지는 계정은 바로 보너스 지급
+        after: async (u) => {
+          if (u.emailVerified) await grantSignupBonus(u.id);
         },
       },
     },
@@ -53,13 +73,18 @@ export const auth = betterAuth({
       "/sign-up/email": { window: 60 * 60, max: 5 }, // 한 IP 에서 시간당 5개 계정
       "/sign-in/email": { window: 60, max: 10 },
       "/send-verification-email": { window: 5 * 60, max: 3 },
+      "/request-password-reset": { window: 5 * 60, max: 3 },
+      "/sign-in/social": { window: 60, max: 10 },
     },
   },
   plugins: [nextCookies()],
 });
 
+/** 구글 로그인을 쓸 수 있는지 (키를 넣었는지) */
+export const googleEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
+
 /** 가입 보너스 지급. 이미 받았으면 (DB 의 유일 제약에 걸려) 아무것도 하지 않는다 */
-async function grantSignupBonus(userId: string) {
+export async function grantSignupBonus(userId: string) {
   try {
     await changeCredits({ userId, amount: SIGNUP_BONUS, reason: "signup_bonus" });
   } catch (err) {
