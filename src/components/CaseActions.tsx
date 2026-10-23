@@ -73,7 +73,7 @@ export function CaseActions({
     <div className="space-y-3">
       {confirmRestart ? (
         <div className="flex flex-wrap items-center gap-2 rounded-xl bg-amber-50 p-3 text-sm dark:bg-amber-950/30">
-          <span className="flex-1">진행 중인 수사는 포기한 것으로 기록돼요. 처음부터 다시 할까요?</span>
+          <span className="flex-1">지금까지의 수사 기록은 지워지고 처음부터 시작해요. 다시 할까요?</span>
           <button onClick={() => setConfirmRestart(false)} className="rounded-lg px-3 py-1.5 hover:bg-white/60 dark:hover:bg-zinc-800">
             취소
           </button>

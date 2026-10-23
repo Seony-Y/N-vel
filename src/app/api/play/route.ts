@@ -10,7 +10,7 @@ import { addMessages } from "@/lib/game/session";
 const Body = z.object({
   caseId: z.uuid(),
   model: z.enum(CHAT_MODELS.map((m) => m.id) as [string, ...string[]]).optional(),
-  restart: z.boolean().default(false), // true 면 진행 중인 기록은 포기 처리하고 새로 시작
+  restart: z.boolean().default(false), // true 면 진행 중인 기록은 지우고 새로 시작
 });
 
 /** POST /api/play  사건 플레이 시작 → { sessionId }. 진행 중인 기록이 있으면 이어서, restart 면 새로 (다시 도전) */
@@ -27,8 +27,9 @@ export async function POST(request: Request) {
 
   const playing = and(eq(playSessions.userId, userId), eq(playSessions.caseId, caseId), eq(playSessions.status, "playing"));
   if (restart) {
-    // 진행 중이던 수사는 포기한 것으로 정리한다 (진행 중 기록이 여러 개 쌓이지 않도록)
-    await db.update(playSessions).set({ status: "finished", ending: "gaveup", score: 0, finishedAt: new Date(), updatedAt: new Date() }).where(playing);
+    // 진행 중이던 수사는 지운다. '포기'로 남기면 포기한 적이 없는데 포기 기록·통계가 쌓인다.
+    // (대화 기록은 함께 지워지고, 크레딧·사용량 기록은 남되 이 수사와의 연결만 끊긴다)
+    await db.delete(playSessions).where(playing);
   } else {
     const [ongoing] = await db
       .select({ id: playSessions.id })

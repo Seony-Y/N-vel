@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
 import { EFFICIENCY_HALF_RATIO, GUIDE_NOTE_MIN, HINT_PENALTY, MAX_EVIDENCE, MAX_NARRATIVE, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
@@ -20,6 +20,25 @@ function readStorage(key: string) {
     return null;
   }
 }
+/** 눌러서 연 창(증거 목록, 말풍선 등): 바깥을 누르거나 Esc 를 누르면 닫는다. 돌려준 ref 를 창과 여는 버튼을 감싼 요소에 단다 */
+function useDismiss<T extends HTMLElement>(open: boolean, close: () => void) {
+  const ref = useRef<T>(null);
+  useEffect(() => {
+    if (!open) return;
+    const onDown = (e: PointerEvent) => {
+      if (ref.current && !ref.current.contains(e.target as Node)) close();
+    };
+    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
+    document.addEventListener("pointerdown", onDown);
+    document.addEventListener("keydown", onKey);
+    return () => {
+      document.removeEventListener("pointerdown", onDown);
+      document.removeEventListener("keydown", onKey);
+    };
+  }, [open, close]);
+  return ref;
+}
+
 function subscribeStorage(onChange: () => void) {
   window.addEventListener("storage", onChange);
   return () => window.removeEventListener("storage", onChange);
@@ -51,6 +70,8 @@ export function PlayScreen({
   const [error, setError] = useState<string | null>(null);
   const [openClue, setOpenClue] = useState<PublicClue | null>(null);
   const [presenting, setPresenting] = useState(false);
+  const closePresenting = useCallback(() => setPresenting(false), []);
+  const presentRef = useDismiss<HTMLDivElement>(presenting, closePresenting);
   const [accusing, setAccusing] = useState(false);
   const [mobileTab, setMobileTab] = useState<"play" | "notebook">("play");
   const [showSuggestions, setShowSuggestions] = useState(true);
@@ -575,7 +596,7 @@ export function PlayScreen({
               className="flex items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800"
             >
               {suspect && (
-                <div className="relative">
+                <div ref={presentRef} className="relative">
                   <button
                     type="button"
                     onClick={() => setPresenting((v) => !v)}
@@ -721,10 +742,12 @@ function ModelPicker({ models, value, disabled, onChange }: { models: ModelOptio
  */
 function ActionsBadge({ used, target }: { used: number; target: number | null }) {
   const [open, setOpen] = useState(false);
+  const close = useCallback(() => setOpen(false), []);
+  const ref = useDismiss<HTMLSpanElement>(open, close);
   const counted = "조사·질문·증거 제시 1번이 행동 1회예요 (비밀번호를 틀려도 1회). 장소 이동, 메모, 힌트, 추리 제출은 세지 않아요.";
   const over = !!target && used > target;
   return (
-    <span className="relative inline-block" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+    <span ref={ref} className="relative inline-block" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
@@ -899,14 +922,30 @@ function LockInput({ label, disabled, onSubmit }: { label: string; disabled: boo
           setCode("");
         }
       }}
-      className="flex items-center gap-2 border-t border-zinc-200 bg-zinc-50 px-3 py-2 dark:border-zinc-800 dark:bg-zinc-950"
+      className="space-y-1.5 border-t border-zinc-200 bg-zinc-50 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-950"
     >
-      <span className="text-sm">🔒 {label}</span>
-      <input value={code} onChange={(e) => setCode(e.target.value)} placeholder="비밀번호" maxLength={30} disabled={disabled} className="w-28 rounded-md border border-zinc-300 bg-white px-2 py-1 text-sm dark:border-zinc-700 dark:bg-zinc-900" />
-      <button type="submit" disabled={disabled || !code.trim()} className="rounded-md bg-zinc-800 px-3 py-1 text-sm text-white disabled:opacity-50 dark:bg-zinc-200 dark:text-zinc-900">
-        열기
-      </button>
-      <span className="text-xs text-zinc-400">틀리면 행동 1회로 세요</span>
+      {/* 윗줄: 잠긴 물건과 안내 / 아랫줄: 입력칸과 열기 (좁은 화면에서 한 줄에 몰리지 않게) */}
+      <div className="flex items-baseline justify-between gap-2">
+        <span className="min-w-0 truncate text-sm font-medium">🔒 {label}</span>
+        <span className="shrink-0 whitespace-nowrap text-[11px] text-zinc-400">틀리면 행동 1회</span>
+      </div>
+      <div className="flex gap-2">
+        <input
+          value={code}
+          onChange={(e) => setCode(e.target.value)}
+          placeholder="비밀번호 입력"
+          maxLength={30}
+          disabled={disabled}
+          autoComplete="off"
+          autoCapitalize="off"
+          spellCheck={false}
+          aria-label={`${label} 비밀번호`}
+          className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900"
+        />
+        <button type="submit" disabled={disabled || !code.trim()} className="shrink-0 whitespace-nowrap rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-200 dark:text-zinc-900">
+          열기
+        </button>
+      </div>
     </form>
   );
 }
