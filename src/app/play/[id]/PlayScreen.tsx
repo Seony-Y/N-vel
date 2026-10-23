@@ -642,7 +642,7 @@ export function PlayScreen({
                     maxLength={1000}
                     disabled={busy || noCredits}
                     placeholder={suspect ? `${suspect.name}에게 질문하기` : "무엇을 조사할까요?"}
-                    className="max-h-32 min-h-[42px] min-w-0 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+                    className={`max-h-32 min-h-[42px] min-w-0 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950 ${input ? "" : "overflow-hidden whitespace-nowrap placeholder:text-ellipsis"}`}
                   />
                   <button type="submit" disabled={busy || noCredits || !input.trim()} className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
                     {busy ? "…" : "보내기"}
