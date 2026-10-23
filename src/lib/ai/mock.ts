@@ -26,7 +26,10 @@ export function mockGameReply(params: { userText: string; modelLabel: string; wh
   if (params.admission) lines.push(`*증거를 보고 표정이 굳는다* (인정: ${params.admission})`);
   if (go) lines.push(`${go.name}(으)로 향합니다.`);
   lines.push(hit.length ? hit.map((c) => `「${c.name}」을(를) 발견했습니다. ${c.description}`).join("\n") : "특별한 것은 보이지 않습니다.");
-  return lines.join("\n") + (go ? `<go>${go.code}</go>` : "") + hit.map((c) => `<clue>${c.code}</clue>`).join("");
+  const next = full
+    ? ["주위를 천천히 둘러본다", ...full.locations.filter((l) => l.code !== go?.code).slice(0, 1).map((l) => `${l.name}(으)로 가 본다`), `${full.suspects[0].name}에게 말을 건다`]
+    : ["그때 어디에 계셨나요?", "피해자와는 어떤 사이였죠?", "더 숨기는 건 없나요?"];
+  return lines.join("\n") + (go ? `<go>${go.code}</go>` : "") + hit.map((c) => `<clue>${c.code}</clue>`).join("") + `<next>${next.join("|")}</next>`;
 }
 
 /** 실제 스트리밍처럼 보이도록 조금씩 내보낸다 */

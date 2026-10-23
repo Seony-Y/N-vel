@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
-import { getChatModel } from "@/lib/ai/models";
+import { CHAT_MODELS, getChatModel } from "@/lib/ai/models";
 import { requireUserId } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
 import { canPlay, loadAllMessages, loadCase, loadSession } from "@/lib/game/load";
@@ -39,7 +39,8 @@ async function Play({ params }: { params: PageProps<"/play/[id]">["params"] }) {
       initialState={publicState(full, session)}
       initialMessages={publicMessages(messages)}
       initialCredits={credits}
-      creditsPerAction={getChatModel(session.model).credits}
+      models={CHAT_MODELS.map(({ id, label, description, credits }) => ({ id, label, description, credits }))}
+      defaultModel={getChatModel(null).id}
     />
   );
 }

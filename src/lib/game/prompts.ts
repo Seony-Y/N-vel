@@ -20,8 +20,9 @@ export const CLUE_TAG_RE = /<clue>\s*([A-Z][A-Z0-9]{0,7})\s*<\/clue>/g;
 const GO_TAG_RE = /<go>\s*([A-Z][A-Z0-9]{0,7})\s*<\/go>/g;
 const TALK_TAG_RE = /<talk>\s*([A-Z][A-Z0-9]{0,7})\s*<\/talk>/g;
 /** 화면에 보이면 안 되는 태그들 (단서 요청, 장소 이동, 심문 전환) */
-const ANY_TAG_RE = /<(clue|go|talk)>\s*[A-Z][A-Z0-9]{0,7}\s*<\/\1>/g;
-const TAG_OPENERS = ["<clue>", "<go>", "<talk>"];
+const NEXT_TAG_RE = /<next>([\s\S]*?)<\/next>/g;
+const ANY_TAG_RE = /<(clue|go|talk)>\s*[A-Z][A-Z0-9]{0,7}\s*<\/\1>|<next>[\s\S]*?<\/next>/g;
+const TAG_OPENERS = ["<clue>", "<go>", "<talk>", "<next>"];
 
 const NARRATOR_RULES = `당신은 추리 게임의 나레이터입니다. 플레이어(탐정)가 사건 현장을 조사하는 장면을 묘사합니다.
 
@@ -34,7 +35,8 @@ const NARRATOR_RULES = `당신은 추리 게임의 나레이터입니다. 플레
 - 잠긴 물건(금고 등)은 잠겨 있다는 것만 묘사하고, 화면의 잠금 해제 칸에 비밀번호를 입력하라고 안내하세요. 비밀번호를 알려주지 마세요.
 - 당신은 범인이 누구인지 모릅니다. 추리하거나 누군가를 범인으로 암시하지 마세요.
 - 플레이어가 용의자에게 말을 걸거나 심문하려 하면, 그 인물을 마주하는 장면만 한 문장으로 묘사하고 응답 맨 끝에 <talk>용의자코드</talk> 를 붙이세요. 용의자의 대사는 지어내지 마세요 (심문 화면으로 넘어갑니다).
-- 실제로 따라 할 수 있는 범죄 방법이나 잔혹한 묘사는 하지 마세요.`;
+- 실제로 따라 할 수 있는 범죄 방법이나 잔혹한 묘사는 하지 마세요.
+- 응답 맨 끝에, 플레이어가 다음에 해 볼 만한 짧은 행동 3개를 <next>행동1|행동2|행동3</next> 로 붙이세요. 각 20자 안팎의 "~한다" 꼴로, 방금 묘사한 장면 속 사물이나 다른 장소·용의자로 이어지는 것을 고르세요. 화면에 버튼으로만 보입니다. 아직 찾지 않은 단서의 정확한 위치를 그대로 알려 주지는 마세요.`;
 
 const SUSPECT_RULES = `당신은 추리 게임 속 용의자를 연기합니다. 탐정(플레이어)이 당신을 심문하고 있습니다.
 
@@ -44,7 +46,8 @@ const SUSPECT_RULES = `당신은 추리 게임 속 용의자를 연기합니다.
 - "숨기는 것"은 스스로 먼저 말하지 마세요. 거짓말 지침이 있으면 따르세요. 단, "이미 인정한 사실"에 있는 내용은 더 이상 부정하지 마세요.
 - 탐정이 증거를 제시하면 그 증거에 반응하세요. "방금 제시된 증거로 무너진 지점"이 있으면 그 지침대로 인정하는 연기를 하세요.
 - "지금 말해 줄 수 있는 증언"의 조건에 맞는 질문을 받으면, 그 내용을 당신의 말투로 전한 뒤 응답 맨 끝에 <clue>코드</clue> 를 붙이세요. 목록에 없는 증언은 태그를 붙이지 마세요.
-- 게임 밖의 이야기(AI 인지, 정답이 뭔지 등)에는 캐릭터를 유지한 채 넘어가세요.`;
+- 게임 밖의 이야기(AI 인지, 정답이 뭔지 등)에는 캐릭터를 유지한 채 넘어가세요.
+- 응답 맨 끝에, 탐정이 이어서 물어볼 만한 짧은 질문 3개를 <next>질문1|질문2|질문3</next> 로 붙이세요. 각 25자 안팎, 탐정의 말투(존댓말)로, 방금 나눈 대화에서 자연스럽게 이어지는 것을 고르세요. 화면에 버튼으로만 보이며 당신의 대사가 아닙니다.`;
 
 function caseHeader(full: FullCase) {
   const c = full.case;
@@ -157,6 +160,12 @@ export function visibleText(full: string, final = false): string {
 
 export function extractClueCodes(full: string): string[] {
   return [...full.matchAll(CLUE_TAG_RE)].map((m) => m[1]);
+}
+
+/** 다음 행동 추천 (화면 버튼용). 너무 길거나 빈 것은 버린다 */
+export function extractSuggestions(full: string): string[] {
+  const body = [...full.matchAll(NEXT_TAG_RE)].at(-1)?.[1] ?? "";
+  return [...new Set(body.split("|").map((s) => s.trim()))].filter((s) => s && s.length <= 60).slice(0, 3);
 }
 
 /** 나레이터가 요청한 장소 이동·심문 전환 (여러 개면 마지막 것) */

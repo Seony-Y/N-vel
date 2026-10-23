@@ -5,7 +5,7 @@ import { getChatModel } from "@/lib/ai/models";
 import { logEvent, logUsage } from "@/lib/ai/usage";
 import { changeCredits, getBalance } from "@/lib/credits";
 import { loadThread } from "@/lib/game/load";
-import { extractClueCodes, extractMoves, narratorPrompt, suspectPrompt, visibleText } from "@/lib/game/prompts";
+import { extractClueCodes, extractMoves, extractSuggestions, narratorPrompt, suspectPrompt, visibleText } from "@/lib/game/prompts";
 import { publicState } from "@/lib/game/public";
 import { actionsLeft, breakpointFor, discoverable, tellableBy, validateRequested } from "@/lib/game/rules";
 import { addMessages, addProgress, openSession } from "@/lib/game/session";
@@ -20,7 +20,7 @@ const Body = z.object({
 /** 호스팅의 함수 최대 실행 시간 (초). 응답이 길어져도 끊기지 않도록 */
 export const maxDuration = 60;
 
-/** 스트림 끝에 붙는 구분자. 그 뒤에 JSON { state, events, talkTo, credits } 가 온다 */
+/** 스트림 끝에 붙는 구분자. 그 뒤에 JSON { state, events, talkTo, suggestions, credits } 가 온다 */
 const TRAILER = "\u001e";
 
 /**
@@ -152,7 +152,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
         ]);
         session = updated;
 
-        controller.enqueue(encoder.encode(TRAILER + JSON.stringify({ state: publicState(full, session), events, talkTo, credits: balance })));
+        controller.enqueue(encoder.encode(TRAILER + JSON.stringify({ state: publicState(full, session), events, talkTo, suggestions: result?.refused ? [] : extractSuggestions(raw), credits: balance })));
       } catch (err) {
         console.error("[play/act] 응답 실패", err);
         await logEvent({ type: "error", where: "play/act", message: err instanceof Error ? err.message : String(err), userId, sessionId: id, caseId: full.case.id, detail: { thread } });
@@ -161,7 +161,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
         const refunded = await changeCredits({ userId, amount: model.credits, reason: "refund", sessionId: id, note: "응답 오류" }).catch(() => null);
         session = (await addProgress(id, { credits: -model.credits }).catch(() => null)) ?? session;
         controller.enqueue(
-          encoder.encode("\n\n(응답 중 오류가 발생했습니다. 크레딧은 돌려드렸어요)" + TRAILER + JSON.stringify({ state: publicState(full, session), events: [], talkTo: null, credits: refunded ?? balance })),
+          encoder.encode("\n\n(응답 중 오류가 발생했습니다. 크레딧은 돌려드렸어요)" + TRAILER + JSON.stringify({ state: publicState(full, session), events: [], talkTo: null, suggestions: [], credits: refunded ?? balance })),
         );
       } finally {
         controller.close();

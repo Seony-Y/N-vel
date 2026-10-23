@@ -10,19 +10,22 @@ const MAX_EVIDENCE = 3;
 const FOUND_PREFIX = "🔍 단서 발견: ";
 
 type Target = "narrator" | string; // 용의자 id
+type ModelOption = { id: string; label: string; description: string; credits: number };
 
 export function PlayScreen({
   data,
   initialState,
   initialMessages,
   initialCredits,
-  creditsPerAction,
+  models,
+  defaultModel,
 }: {
   data: PublicCase;
   initialState: PublicState;
   initialMessages: PublicMessage[];
   initialCredits: number;
-  creditsPerAction: number;
+  models: ModelOption[];
+  defaultModel: string;
 }) {
   const router = useRouter();
   const [state, setState] = useState(initialState);
@@ -38,6 +41,10 @@ export function PlayScreen({
   const [mobileTab, setMobileTab] = useState<"play" | "notebook">("play");
   const [toast, setToast] = useState<string | null>(null);
   const [credits, setCredits] = useState(initialCredits);
+  // 대화 상대마다 AI 가 마지막으로 추천한 다음 행동. 없으면 기본 추천을 보여 준다
+  const [suggested, setSuggested] = useState<Record<string, string[]>>({});
+  const model = models.find((m) => m.id === state.model) ?? models.find((m) => m.id === defaultModel) ?? models[0];
+  const creditsPerAction = model.credits;
   const noCredits = credits < creditsPerAction;
 
   const suspect = data.suspects.find((s) => s.id === target) ?? null;
@@ -47,6 +54,7 @@ export function PlayScreen({
   const outOfActions = state.actionsLeft === 0;
   const badges = (
     <div className="flex items-center gap-1.5">
+      <ModelPicker models={models} value={model.id} disabled={busy} onChange={changeModel} />
       <span
         className={`rounded-full px-2.5 py-1 text-xs font-medium ${noCredits ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"}`}
         title={`행동 1회에 ${creditsPerAction}크레딧`}
@@ -122,13 +130,14 @@ export function PlayScreen({
       }
 
       const [text, trailer] = raw.split(TRAILER);
-      const result = trailer ? (JSON.parse(trailer) as { state: PublicState; events: string[]; talkTo: string | null; credits: number }) : null;
+      const result = trailer ? (JSON.parse(trailer) as { state: PublicState; events: string[]; talkTo: string | null; suggestions?: string[]; credits: number }) : null;
       pushLocal({ thread, role: "assistant", content: text.trim() }, ...(result?.events ?? []).map((content) => ({ thread, role: "event" as const, content })));
       if (result) {
         setState(result.state);
         setCredits(result.credits);
         const found = result.events.filter((e) => e.startsWith(FOUND_PREFIX)).length;
         if (found) flash(`🔍 단서 ${found}개 발견 · 수첩에 적었어요`);
+        setSuggested((s) => ({ ...s, [thread]: result.suggestions ?? [] }));
         // 나레이터가 용의자를 마주하는 장면으로 넘겼으면 바로 심문 화면으로
         if (result.talkTo) setTarget(result.talkTo);
       }
@@ -175,6 +184,29 @@ export function PlayScreen({
       setError((e as Error).message);
     }
   }
+
+  async function changeModel(id: string) {
+    const before = state.model;
+    setState((s) => ({ ...s, model: id }));
+    try {
+      await post("model", { model: id });
+      const m = models.find((x) => x.id === id);
+      if (m) flash(`다음 행동부터 ${m.label} · 💎 ${m.credits}`);
+    } catch (e) {
+      setState((s) => ({ ...s, model: before }));
+      setError((e as Error).message);
+    }
+  }
+
+  // 기본 추천: 아직 AI 추천이 없을 때 (처음, 새로고침 뒤, 대화 상대를 막 바꿨을 때)
+  const otherLocation = data.locations.find((l) => l.id !== state.currentLocationId);
+  const lastClue = state.foundClues.at(-1);
+  const suggestions =
+    suggested[thread]?.length
+      ? suggested[thread]
+      : suspect
+        ? ["사건 당일 밤 어디에 계셨나요?", "피해자와는 어떤 사이였나요?", lastClue ? `「${lastClue.name}」에 대해 아는 게 있나요?` : "혹시 수상한 걸 보거나 들으셨나요?"]
+        : ["주위를 천천히 둘러본다", location ? `${location.name}에서 눈에 띄는 물건을 살펴본다` : "현장을 자세히 살펴본다", otherLocation ? `${otherLocation.name}(으)로 가 본다` : `${data.suspects[0]?.name ?? "용의자"}에게 말을 건다`];
 
   async function hint() {
     try {
@@ -259,7 +291,7 @@ export function PlayScreen({
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-3 py-3 sm:px-4 lg:h-[calc(100vh-57px)] lg:flex-row lg:gap-4">
       {/* 상단 정보 (모바일) */}
-      <div className="mb-2 flex items-center justify-between gap-2 lg:hidden">
+      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 lg:hidden">
         <div className="flex rounded-lg bg-zinc-100 p-1 text-sm dark:bg-zinc-800">
           {(["play", "notebook"] as const).map((t) => (
             <button key={t} onClick={() => setMobileTab(t)} className={`rounded-md px-3 py-1 ${mobileTab === t ? "bg-white shadow-sm dark:bg-zinc-900" : "text-zinc-500"}`}>
@@ -304,8 +336,26 @@ export function PlayScreen({
         {error && <p className="border-t border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/40">{error}</p>}
         {noCredits && (
           <p className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-            💎 크레딧이 부족해요 (행동 1회에 {creditsPerAction}크레딧). 수첩에서 추리를 제출하거나, 더 저렴한 모델로 다시 도전할 수 있어요.
+            💎 크레딧이 부족해요 (행동 1회에 {creditsPerAction}크레딧). 위에서 더 저렴한 모델로 바꾸거나, 수첩에서 추리를 제출할 수 있어요.
           </p>
+        )}
+
+        {/* 추천 행동: 누르면 바로 보낸다. 직접 입력도 그대로 가능 */}
+        {!outOfActions && !noCredits && (
+          <div className="flex gap-1.5 overflow-x-auto border-t border-zinc-200 px-3 pt-2.5 dark:border-zinc-800">
+            {suggestions.map((s) => (
+              <button
+                key={s}
+                type="button"
+                disabled={busy}
+                onClick={() => act(s)}
+                title={`보내기 (💎 ${creditsPerAction})`}
+                className="shrink-0 rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:border-red-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-800 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+              >
+                {s}
+              </button>
+            ))}
+          </div>
         )}
 
         <form
@@ -372,6 +422,26 @@ export function PlayScreen({
       {accusing && <AccuseModal data={data} state={state} onClose={() => setAccusing(false)} onDone={() => router.push(`/play/${state.sessionId}/result`)} />}
       {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-zinc-900">{toast}</div>}
     </div>
+  );
+}
+
+/** 수사 도중 모델 바꾸기. 다음 행동부터 적용된다 */
+function ModelPicker({ models, value, disabled, onChange }: { models: ModelOption[]; value: string; disabled: boolean; onChange: (id: string) => void }) {
+  return (
+    <select
+      value={value}
+      disabled={disabled}
+      onChange={(e) => onChange(e.target.value)}
+      aria-label="AI 모델"
+      title="AI 모델 (다음 행동부터 적용)"
+      className="rounded-full border border-zinc-200 bg-white py-1 pr-7 pl-2.5 text-xs font-medium disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+    >
+      {models.map((m) => (
+        <option key={m.id} value={m.id}>
+          {m.label} · 💎{m.credits}
+        </option>
+      ))}
+    </select>
   );
 }
 
