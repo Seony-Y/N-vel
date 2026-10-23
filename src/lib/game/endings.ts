@@ -3,7 +3,7 @@ export const ENDINGS = {
   correct: { icon: "✅", label: "해결", title: "사건 해결" },
   partial: { icon: "🟡", label: "부분 해결", title: "부분 해결" },
   wrong: { icon: "❌", label: "미제", title: "미제 사건" },
-  gaveup: { icon: "🏳", label: "포기", title: "미제 사건 (수사 포기)" },
+  gaveup: { icon: "🏳️", label: "포기", title: "미제 사건 (수사 포기)" },
 } as const;
 
 export type EndingKey = keyof typeof ENDINGS;

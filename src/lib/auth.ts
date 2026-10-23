@@ -63,6 +63,11 @@ export const auth = betterAuth({
       },
     },
   },
+  // 로그인 확인을 서명된 쿠키에서 읽는다 (5분). 요청마다 세션을 DB 에서 찾느라 생기는 지연(서울↔싱가포르 왕복)을 없앤다.
+  // 계정 삭제처럼 최신 세션이 꼭 필요한 곳은 getSession 에 disableCookieCache 를 넘긴다
+  session: {
+    cookieCache: { enabled: true, maxAge: 5 * 60 },
+  },
   // 요청 횟수 제한 (IP 기준). 서버가 여러 대여도 공유되도록 DB 에 저장
   rateLimit: {
     enabled: true,

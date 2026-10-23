@@ -1,6 +1,6 @@
 import { and, asc, desc, eq, gte, sql } from "drizzle-orm";
 import { db } from "@/db";
-import { cases, eventLogs, playMessages, playSessions, usageLogs, user } from "@/db/schema";
+import { apiTopups, cases, eventLogs, playMessages, playSessions, usageLogs, user } from "@/db/schema";
 
 /*
  * 관리자 화면용 집계. 모두 DB 로그(play_sessions, usage_logs, event_logs) 기준.
@@ -219,4 +219,27 @@ export async function sessionDetail(sessionId: string) {
     db.select().from(eventLogs).where(eq(eventLogs.sessionId, sessionId)).orderBy(asc(eventLogs.id)),
   ]);
   return { ...s, messages, usage, events };
+}
+
+/**
+ * API 예산: 기록한 충전액 합계에서 첫 충전 기록 이후의 API 원가를 뺀 남은 예상 금액.
+ * 원가는 토큰 수 × 가격표(models.ts)로 계산한 추정치라 실제 청구액과 조금 다를 수 있다
+ */
+export async function apiBudget() {
+  const topups = await db.select().from(apiTopups).orderBy(desc(apiTopups.chargedAt));
+  if (!topups.length) return { topups, chargedMicros: 0, usedMicros: 0, remainingMicros: 0, from: null as Date | null, burnPerDay: 0 };
+  const from = topups.at(-1)!.chargedAt;
+  const weekAgo = since(7);
+  const [used] = await db
+    .select({
+      micros: sql<number>`coalesce(sum(${usageLogs.costMicros}), 0)`,
+      week: sql<number>`coalesce(sum(${usageLogs.costMicros}) filter (where ${usageLogs.createdAt} >= ${weekAgo.toISOString()}), 0)`,
+    })
+    .from(usageLogs)
+    .where(gte(usageLogs.createdAt, from));
+  const chargedMicros = topups.reduce((n, t) => n + t.amountMicros, 0);
+  const usedMicros = int(used.micros);
+  // 최근 7일 하루 평균 사용액 (첫 기록이 7일보다 최근이면 그 기간으로 나눈다)
+  const days = Math.max(1, Math.min(7, (Date.now() - from.getTime()) / 86400_000));
+  return { topups, chargedMicros, usedMicros, remainingMicros: chargedMicros - usedMicros, from, burnPerDay: Math.round(int(used.week) / days) };
 }

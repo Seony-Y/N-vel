@@ -16,7 +16,8 @@ const Body = z.object({ confirm: z.string() });
  * 계정과 관련 데이터(로그인 정보, 크레딧, 플레이 기록, 만든 사건, 사용 기록)를 모두 지운다. 되돌릴 수 없다.
  */
 export async function POST(request: Request) {
-  const session = await auth.api.getSession({ headers: await headers() });
+  // 쿠키에 담긴 세션이 아니라 DB 의 최신 세션으로 확인한다 (다른 곳에서 로그아웃했으면 막는다)
+  const session = await auth.api.getSession({ headers: await headers(), query: { disableCookieCache: true } });
   if (!session) return Response.json({ error: "로그인이 필요합니다" }, { status: 401 });
 
   const parsed = Body.safeParse(await request.json().catch(() => null));

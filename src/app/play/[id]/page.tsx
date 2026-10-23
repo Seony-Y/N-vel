@@ -5,7 +5,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { CHAT_MODELS, getChatModel } from "@/lib/ai/models";
 import { requireUserId } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
-import { canPlay, loadAllMessages, loadCase, loadSession } from "@/lib/game/load";
+import { canPlay, loadAllMessages, loadCaseCached, loadSessionWithCase } from "@/lib/game/load";
 import { publicCase, publicMessages, publicState } from "@/lib/game/public";
 import { PlayScreen } from "./PlayScreen";
 
@@ -25,14 +25,16 @@ export default function PlayPage({ params }: PageProps<"/play/[id]">) {
 async function Play({ params }: { params: PageProps<"/play/[id]">["params"] }) {
   const { id } = await params;
   const userId = await requireUserId(`/play/${id}`);
-  const session = await loadSession(id, userId).catch(() => null);
-  if (!session) notFound();
+  // 기록과 사건의 공개 여부·수정 시각을 한 번에 읽고, 사건 전체는 수정 시각이 같으면 메모리 캐시를 쓴다.
+  // 대화 기록·잔액은 사건을 기다리지 않고 함께 읽는다 (DB 왕복을 줄여 첫 화면을 빨리)
+  const row = await loadSessionWithCase(id, userId).catch(() => null);
+  if (!row) notFound();
+  const { session } = row;
   if (session.status === "finished") redirect(`/play/${id}/result`);
+  if (!canPlay(row, userId)) notFound();
 
-  const full = await loadCase(session.caseId);
-  if (!full || !canPlay(full.case, userId)) notFound();
-
-  const [messages, credits] = await Promise.all([loadAllMessages(id), getBalance(userId)]);
+  const [full, messages, credits] = await Promise.all([loadCaseCached(session.caseId, row.updatedAt), loadAllMessages(id), getBalance(userId)]);
+  if (!full) notFound();
   return (
     <PlayScreen
       data={publicCase(full)}

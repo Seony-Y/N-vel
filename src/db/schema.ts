@@ -350,3 +350,17 @@ export const creditLedger = pgTable(
     uniqueIndex("credit_ledger_signup_bonus_once").on(t.userId).where(sql`${t.reason} = 'signup_bonus'`),
   ],
 );
+
+// ───────────────────────── API 충전 기록 (관리자) ─────────────────────────
+// Anthropic 계정에 충전한 금액. 남은 예상 금액 = 충전 합계 - 첫 기록 이후 API 원가(usage_logs) 합계
+export const apiTopups = pgTable(
+  "api_topups",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    amountMicros: bigint("amount_micros", { mode: "number" }).notNull(), // 충전 금액 (백만분의 1달러)
+    note: text("note").notNull().default(""),
+    adminId: text("admin_id").references(() => user.id, { onDelete: "set null" }),
+    chargedAt: timestamp("charged_at", { withTimezone: true }).notNull().defaultNow(), // 충전한 시각. 이 시각부터 쓴 원가를 뺀다
+  },
+  (t) => [index("api_topups_charged_idx").on(t.chargedAt)],
+);
