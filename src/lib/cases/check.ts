@@ -1,3 +1,4 @@
+import { MAX_HINTS } from "@/lib/game/rules";
 import type { CaseFile } from "./format";
 
 /*
@@ -66,8 +67,10 @@ export function checkCase(c: CaseFile): CheckIssue[] {
     for (const r of k.requires) if (!c.clues.find((x) => x.code === r)) warn(`「${k.name}」의 선행 단서 ${name(r)}가 없어요`);
   }
   for (const l of c.locations) if (!c.clues.some((x) => x.location === l.code)) tip(`장소 「${l.name}」에 단서가 하나도 없어요`);
+  if (!c.rubric.length) tip("추리 서술 채점 포인트가 없어요. 기본 기준으로 채점되지만, 이 사건에서 꼭 짚어야 할 내용(범행 방법, 거짓 알리바이와 근거, 숨긴 곳, 동기)을 넣으면 채점이 정확해져요");
   if (!c.quiz.length) tip("객관식 질문(흉기, 동기 등)이 없어요. 범인만 맞히는 게임이 돼요");
-  if (!c.hints.length) tip("힌트가 없어요. 막힌 플레이어를 위해 한두 개 넣어 두면 좋아요");
+  if (!c.hints.length) tip(`힌트가 없어요. 막힌 플레이어를 위해 넣어 두면 좋아요. 최대 ${MAX_HINTS}개, 뒤로 갈수록 결정적으로 (방향 → 볼 곳 → 모순 → 거의 정답)`);
+  else if (c.hints.length < MAX_HINTS) tip(`힌트가 ${c.hints.length}개예요. ${MAX_HINTS}개까지 넣을 수 있어요. 뒤로 갈수록 결정적인 힌트를 주면 막힌 플레이어가 조금씩 풀 수 있어요`);
   if (!c.endingCorrect) tip("정답 엔딩 문구가 비어 있어요");
 
   return out;

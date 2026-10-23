@@ -35,7 +35,7 @@ export function FavoriteButton({ caseId, initial, loggedIn, variant = "icon" }: 
   if (variant === "text") {
     return (
       <span className="relative inline-block">
-        <button type="button" onClick={toggle} disabled={pending} aria-pressed={on} title={title} className={`font-medium hover:underline ${on ? "text-amber-500" : "text-zinc-500"}`}>
+        <button type="button" onClick={toggle} disabled={pending} aria-pressed={on} title={title} className={`rounded-md px-1.5 py-0.5 font-medium hover:bg-amber-50 dark:hover:bg-amber-950/30 ${on ? "text-amber-500" : "text-zinc-500 hover:text-amber-600"}`}>
           {on ? "★" : "☆"} {label}
         </button>
         {tip}

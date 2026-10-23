@@ -1,7 +1,7 @@
 import type { GuideStep } from "@/db/schema";
 import type { PlayMessage, PlaySession } from "@/types/db";
 import type { FullCase } from "./load";
-import { actionsLeft } from "./rules";
+import { actionsLeft, MAX_HINTS } from "./rules";
 
 /*
  * 화면으로 보내도 되는 값만 골라낸다.
@@ -105,7 +105,7 @@ export function publicState(full: FullCase, s: PlaySession): PublicState {
     actionsLeft: actionsLeft(full, s),
     hintsUsed: s.hintsUsed,
     hints: full.case.hints.slice(0, s.hintsUsed),
-    hintsTotal: full.case.hints.length,
+    hintsTotal: Math.min(full.case.hints.length, MAX_HINTS), // 예전에 4개 넘게 넣은 사건도 4개까지만
     foundClues,
     locks: full.clues
       .filter((c) => c.passcode && c.locationId && !found.has(c.id))

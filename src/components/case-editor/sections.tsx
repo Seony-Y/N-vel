@@ -2,6 +2,7 @@
 
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import { AddButton, inputClass, ItemCard, Label, Section, TextArea, TextInput } from "@/components/form/fields";
+import { HINT_PENALTY, MAX_EVIDENCE, MAX_HINTS, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
 import { emptyClue, emptySuspect, nextCode, removeClue, removeLocation, removeSuspect, type Draft } from "./draft";
 
 /** 에디터 각 탭. update 는 초안을 복사해 고친 뒤 반영한다 */
@@ -312,7 +313,7 @@ export function TruthTab({ d, update }: Props) {
         <TextArea title="실제로 일어난 일 (타임라인)" hint="시간순으로. 결과 화면에 그대로 보여요" value={d.truth} onChange={(v) => update((x) => void (x.truth = v))} max={8000} rows={10} />
       </Section>
 
-      <Section title="객관식 질문" description="범인 외에 맞혀야 할 것 (흉기, 동기, 수법 등). 최대 5개, 합쳐서 30점">
+      <Section title="객관식 질문" description={`범인 외에 맞혀야 할 것 (흉기, 동기, 수법 등). 최대 5개, 합쳐서 ${POINTS.quiz}점`}>
         {d.quiz.map((q, qi) => (
           <ItemCard key={qi} title={`질문 ${qi + 1}`} onRemove={() => update((x) => void x.quiz.splice(qi, 1))}>
             <TextInput title="질문" value={q.question} onChange={(v) => update((x) => void (x.quiz[qi].question = v))} max={200} placeholder="예) 흉기는 무엇인가?" />
@@ -354,7 +355,38 @@ export function TruthTab({ d, update }: Props) {
         </AddButton>
       </Section>
 
-      <Section title="결정적 증거" description="단서 탭에서 ⭐ 를 켠 단서들이에요. 플레이어는 최대 3개를 골라 20점을 받아요">
+      <Section
+        title="추리 서술 채점 포인트"
+        description={`플레이어가 쓴 추리 서술(${POINTS.narrative}점)을 AI 가 이 포인트마다 맞음·부분·빠짐으로 판정해요. 비워 두면 '범인과 범행 방법, 동기, 거짓 알리바이의 근거, 사건 흐름' 기본 기준으로 채점해요`}
+      >
+        {d.rubric.map((r, ri) => (
+          <ItemCard key={ri} title={`포인트 ${ri + 1}`} onRemove={() => update((x) => void x.rubric.splice(ri, 1))}>
+            <TextArea
+              title="플레이어가 써야 할 내용"
+              hint="진상에 비춰 판정할 수 있게 구체적으로. 괄호 안에 근거 단서를 적어 두면 좋아요"
+              value={r.point}
+              onChange={(v) => update((x) => void (x.rubric[ri].point = v))}
+              max={300}
+              rows={2}
+            />
+            <div>
+              <Label title="비중" hint="중요한 포인트일수록 크게" />
+              <div className="flex gap-2">
+                {[1, 2, 3].map((w) => (
+                  <label key={w} className={`cursor-pointer rounded-lg border-2 px-3 py-1 text-sm ${r.weight === w ? "border-red-600 bg-red-50 dark:bg-red-950/30" : "border-zinc-200 dark:border-zinc-700"}`}>
+                    <input type="radio" className="sr-only" checked={r.weight === w} onChange={() => update((x) => void (x.rubric[ri].weight = w))} />×{w}
+                  </label>
+                ))}
+              </div>
+            </div>
+          </ItemCard>
+        ))}
+        <AddButton onClick={() => update((x) => void x.rubric.push({ point: "", weight: 1 }))} disabled={d.rubric.length >= 8}>
+          포인트 추가 ({d.rubric.length}/8)
+        </AddButton>
+      </Section>
+
+      <Section title="결정적 증거" description={`단서 탭에서 ⭐ 를 켠 단서들이에요. 플레이어는 최대 ${MAX_EVIDENCE}개를 골라 ${POINTS.evidence}점을 받아요`}>
         <p className="text-sm">{d.clues.filter((c) => c.isKey).map((c) => c.name || c.code).join(", ") || "아직 없어요. 단서 탭에서 ⭐ 결정적 증거를 켜 주세요"}</p>
       </Section>
     </>
@@ -365,7 +397,7 @@ export function TruthTab({ d, update }: Props) {
 export function EndingsTab({ d, update }: Props) {
   return (
     <>
-      <Section title="엔딩" description="범인을 맞히고 80점 이상이면 정답, 범인만 맞히면 부분 정답, 틀리면 오답, 수사를 포기하면 포기 엔딩이에요">
+      <Section title="엔딩" description={`범인을 맞히고 ${SOLVED_SCORE}점 이상이면 정답, 범인만 맞히면 부분 정답, 틀리면 오답, 수사를 포기하면 포기 엔딩이에요`}>
         <TextArea title="정답 엔딩" value={d.endingCorrect} onChange={(v) => update((x) => void (x.endingCorrect = v))} max={4000} rows={4} />
         <TextArea title="부분 정답 엔딩" value={d.endingPartial} onChange={(v) => update((x) => void (x.endingPartial = v))} max={4000} rows={3} />
         <TextArea title="오답 엔딩" value={d.endingWrong} onChange={(v) => update((x) => void (x.endingWrong = v))} max={4000} rows={3} />
@@ -378,7 +410,15 @@ export function EndingsTab({ d, update }: Props) {
           rows={3}
         />
       </Section>
-      <Section title="힌트" description="플레이어가 순서대로 하나씩 열어 볼 수 있어요. 하나당 10점 감점. 최대 10개">
+      <Section
+        title="힌트"
+        description={`플레이어가 순서대로 하나씩 열어 볼 수 있어요. 하나당 ${HINT_PENALTY}점 감점. 최대 ${MAX_HINTS}개. 뒤로 갈수록 결정적으로 (방향 → 볼 곳 → 모순 → 거의 정답)`}
+      >
+        {d.hints.length > MAX_HINTS && (
+          <p className="rounded-lg bg-amber-50 px-3 py-2 text-sm text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            힌트는 이제 {MAX_HINTS}개까지예요. {d.hints.length - MAX_HINTS}개를 지워야 저장할 수 있어요.
+          </p>
+        )}
         {d.hints.map((h, i) => (
           <div key={i} className="flex items-start gap-2">
             <span className="mt-2 text-sm text-zinc-400">{i + 1}.</span>
@@ -388,8 +428,8 @@ export function EndingsTab({ d, update }: Props) {
             </button>
           </div>
         ))}
-        <AddButton onClick={() => update((x) => void x.hints.push(""))} disabled={d.hints.length >= 10}>
-          힌트 추가 ({d.hints.length}/10)
+        <AddButton onClick={() => update((x) => void x.hints.push(""))} disabled={d.hints.length >= MAX_HINTS}>
+          힌트 추가 ({d.hints.length}/{MAX_HINTS})
         </AddButton>
       </Section>
     </>

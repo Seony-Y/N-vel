@@ -9,7 +9,7 @@ type Usage = Anthropic.Beta.BetaUsage | Anthropic.Usage;
 export async function logUsage(params: {
   userId: string;
   sessionId: string | null;
-  kind: "narrator" | "suspect" | "review";
+  kind: "narrator" | "suspect" | "review" | "grade";
   model: string;
   usage: Usage;
 }) {

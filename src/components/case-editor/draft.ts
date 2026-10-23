@@ -34,6 +34,7 @@ export function emptyDraft(): Draft {
     culprit: "S1",
     truth: "",
     quiz: [],
+    rubric: [],
     endingCorrect: "",
     endingPartial: "",
     endingWrong: "",
@@ -98,7 +99,7 @@ export function tabForPath(path: string): TabId {
   if (head === "locations") return "locations";
   if (head === "suspects") return "suspects";
   if (head === "clues") return "clues";
-  if (["culprit", "truth", "quiz"].includes(head)) return "truth";
+  if (["culprit", "truth", "quiz", "rubric"].includes(head)) return "truth";
   if (["endingCorrect", "endingPartial", "endingWrong", "endingGiveUp", "hints"].includes(head)) return "endings";
   return "basic";
 }

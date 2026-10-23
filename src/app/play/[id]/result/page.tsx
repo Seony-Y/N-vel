@@ -7,7 +7,7 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { requireUserId } from "@/lib/auth";
 import { loadCase, loadSession } from "@/lib/game/load";
 import { DEFAULT_GIVE_UP_ENDING, ENDINGS } from "@/lib/game/endings";
-import { grade, SOLVED_SCORE } from "@/lib/game/rules";
+import { type Grade, grade, SOLVED_SCORE } from "@/lib/game/rules";
 
 export const metadata: Metadata = { title: "수사 결과 | N-vel" };
 
@@ -30,6 +30,44 @@ const COLOR = {
 } as const;
 
 const fmt = (n: number) => (Number.isInteger(n) ? String(n) : n.toFixed(1));
+
+const VERDICT = { hit: { icon: "⭕", label: "맞음" }, partial: { icon: "🔺", label: "부분" }, miss: { icon: "❌", label: "빠짐" } } as const;
+
+/** 서술형 추리: 내가 쓴 글, 채점 포인트별 판정, 총평 */
+function NarrativeResult({ n }: { n: Grade["narrative"] }) {
+  if (!n) return null;
+  return (
+    <div className="mt-2 space-y-3 text-sm">
+      {n.text ? (
+        <details>
+          <summary className="cursor-pointer text-zinc-500">내가 쓴 추리 보기</summary>
+          <p className="mt-1.5 whitespace-pre-wrap rounded-lg bg-white/60 px-3 py-2 leading-relaxed dark:bg-zinc-900/60">{n.text}</p>
+        </details>
+      ) : (
+        <p className="text-zinc-500">추리 서술을 쓰지 않았어요.</p>
+      )}
+      {n.grade && n.text && (
+        <>
+          <ul className="space-y-1.5">
+            {n.grade.points.map((p, i) => (
+              <li key={i}>
+                <div>
+                  {VERDICT[p.verdict].icon} {p.point}
+                  <span className="ml-1 text-xs text-zinc-500">
+                    {VERDICT[p.verdict].label}
+                    {p.weight > 1 && ` · 비중 ×${p.weight}`}
+                  </span>
+                </div>
+                {p.comment && <p className="ml-6 text-xs text-zinc-500">{p.comment}</p>}
+              </li>
+            ))}
+          </ul>
+          {n.grade.feedback && <p className="rounded-lg bg-white/60 px-3 py-2 text-zinc-700 dark:bg-zinc-900/60 dark:text-zinc-300">💬 {n.grade.feedback}</p>}
+        </>
+      )}
+    </div>
+  );
+}
 
 async function Result({ params }: { params: PageProps<"/play/[id]/result">["params"] }) {
   const { id } = await params;
@@ -99,7 +137,9 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
                     {fmt(it.points)} / {fmt(it.max)}점
                   </span>
                 </div>
-                {it.kind === "evidence" ? (
+                {it.kind === "narrative" ? (
+                  <NarrativeResult n={g.narrative} />
+                ) : it.kind === "evidence" ? (
                   <div className="mt-2 space-y-1 text-sm">
                     {g.evidence.length === 0 && <p className="text-zinc-500">제출한 증거 없음</p>}
                     {g.evidence.map((e, ei) => (

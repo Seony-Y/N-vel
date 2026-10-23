@@ -1,6 +1,6 @@
 import type * as schema from "@/db/schema";
 
-export type { Accusation, QuizQuestion } from "@/db/schema";
+export type { Accusation, NarrativeGrade, QuizQuestion, RubricPoint } from "@/db/schema";
 
 export type CaseRating = (typeof schema.caseRating.enumValues)[number];
 export type Case = typeof schema.cases.$inferSelect;

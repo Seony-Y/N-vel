@@ -135,6 +135,7 @@ export const cases = pgTable(
     culpritId: uuid("culprit_id"), // suspects.id. 순환 참조라 FK 는 걸지 않음
     truth: text("truth").notNull().default(""), // 실제로 일어난 일 (타임라인)
     quiz: jsonb("quiz").$type<QuizQuestion[]>().notNull().default([]), // 동기·수단 등 객관식
+    rubric: jsonb("rubric").$type<RubricPoint[]>().notNull().default([]), // 서술형 추리 채점 포인트. 비우면 기본 기준으로 채점
     endingCorrect: text("ending_correct").notNull().default(""),
     endingPartial: text("ending_partial").notNull().default(""),
     endingWrong: text("ending_wrong").notNull().default(""),
@@ -223,6 +224,20 @@ export interface Accusation {
   culpritId: string;
   answers: number[];
   evidenceIds: string[];
+  narrative?: string; // 서술형 추리. 없으면 서술 채점 도입 전의 기록 (예전 배점으로 계산)
+  narrativeGrade?: NarrativeGrade; // 제출할 때 AI 가 채점한 결과 (다시 채점하지 않도록 저장)
+}
+
+/** 서술형 추리 채점 결과. 채점 포인트마다 맞음(hit)·부분(partial)·빠짐(miss) */
+export interface NarrativeGrade {
+  points: { point: string; weight: number; verdict: "hit" | "partial" | "miss"; comment: string }[];
+  feedback: string;
+}
+
+/** 서술형 추리의 채점 포인트. 제작자가 정한다 (AI 는 이 포인트를 썼는지만 판정) */
+export interface RubricPoint {
+  point: string;
+  weight: number; // 1~3. 중요한 포인트일수록 크게
 }
 
 export const playSessions = pgTable(

@@ -69,7 +69,7 @@ async function SessionDetail({ params }: { params: PageProps<"/admin/sessions/[i
               <tr key={i}>
                 <Td>{it.label}</Td>
                 <Td>{it.ok ? "⭕ 맞음" : "❌ 틀림"}</Td>
-                <Td>{it.mine}</Td>
+                <Td>{it.kind === "narrative" ? <p className="line-clamp-3 max-w-md whitespace-pre-wrap" title={it.mine}>{it.mine}</p> : it.mine}</Td>
                 <Td>{it.answer}</Td>
                 <Td num>
                   {Math.round(it.points)} / {Math.round(it.max)}
@@ -122,7 +122,7 @@ async function SessionDetail({ params }: { params: PageProps<"/admin/sessions/[i
           {d.usage.map((u) => (
             <tr key={u.id}>
               <Td className="text-zinc-500">{dt(u.createdAt)}</Td>
-              <Td>{u.kind === "narrator" ? "조사" : u.kind === "suspect" ? "심문" : u.kind}</Td>
+              <Td>{u.kind === "narrator" ? "조사" : u.kind === "suspect" ? "심문" : u.kind === "grade" ? "서술 채점" : u.kind}</Td>
               <Td className="font-mono text-xs">{u.model}</Td>
               <Td num>{u.inputTokens.toLocaleString()}</Td>
               <Td num>{u.cacheWriteTokens.toLocaleString()}</Td>

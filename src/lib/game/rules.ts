@@ -1,11 +1,12 @@
-import type { Accusation, Clue, PlaySession } from "@/types/db";
+import type { Accusation, Clue, NarrativeGrade, PlaySession } from "@/types/db";
 import type { FullCase } from "./load";
 
 /*
  * 게임 규칙. AI 가 무엇을 요청하든 최종 판정은 여기서 한다.
  */
 
-export const HINT_PENALTY = 10;
+export const HINT_PENALTY = 5;
+export const MAX_HINTS = 4; // 사건 하나에 넣을 수 있는 힌트 수. 뒤로 갈수록 결정적인 힌트
 export const MAX_EVIDENCE = 3;
 
 /** 선행 단서를 모두 찾았는지 */
@@ -58,14 +59,35 @@ export function actionsLeft(full: FullCase, session: PlaySession) {
  *   해결      = 범인을 맞히고 점수가 SOLVED_SCORE 이상
  *   부분 해결 = 범인은 맞혔지만 점수가 모자람 (동기·수법·증거 중 틀린 게 많음)
  *   실패      = 범인을 틀림 (나머지를 다 맞혀도 실패)
- * 점수 = 범인 50 + 객관식 30(문항 수로 나눔) + 결정적 증거 20(맞힌 개수 비율) - 힌트 1개당 10
+ * 점수 = 범인 40 + 객관식 20(문항 수로 나눔) + 결정적 증거 15(맞힌 개수 비율) + 추리 서술 25(채점 포인트 비율) - 힌트 1개당 HINT_PENALTY(5)
+ *   서술 없이 나머지를 다 맞히면 75점이라, 해결하려면 사건의 전말을 어느 정도 써야 한다
+ * 서술 채점 도입 전에 제출한 기록(narrative 없음)은 예전 배점(LEGACY_POINTS)으로 계산한다.
  * 관리자 통계의 "성공"은 '해결'만 센다.
  */
 export const SOLVED_SCORE = 80;
-const POINTS = { culprit: 50, quiz: 30, evidence: 20 } as const;
+export const POINTS = { culprit: 40, quiz: 20, evidence: 15, narrative: 25 } as const;
+const LEGACY_POINTS = { culprit: 50, quiz: 30, evidence: 20, narrative: 0 } as const;
+const LEGACY_HINT_PENALTY = 10; // 예전 기록은 제출할 때의 감점으로 다시 계산해야 저장된 점수·엔딩과 맞는다
+export const MAX_NARRATIVE = 3000; // 서술형 추리 글자 수
+
+const VERDICT_VALUE = { hit: 1, partial: 0.5, miss: 0 } as const;
+
+/** 서술 채점 결과 → 0~1 (포인트 가중치 반영) */
+export function narrativeRatio(g: NarrativeGrade | undefined) {
+  const total = g?.points.reduce((sum, p) => sum + p.weight, 0) ?? 0;
+  if (!g || !total) return 0;
+  return g.points.reduce((sum, p) => sum + p.weight * VERDICT_VALUE[p.verdict], 0) / total;
+}
+
+/** 서술 채점 요약 (예: 채점 포인트 5개 중 맞음 3 · 부분 1) */
+function narrativeSummary(g: NarrativeGrade | undefined) {
+  if (!g) return "";
+  const n = (v: string) => g.points.filter((p) => p.verdict === v).length;
+  return `채점 포인트 ${g.points.length}개 중 맞음 ${n("hit")} · 부분 ${n("partial")}`;
+}
 
 export interface GradeItem {
-  kind: "culprit" | "quiz" | "evidence";
+  kind: "culprit" | "quiz" | "evidence" | "narrative";
   label: string;
   ok: boolean;
   mine: string; // 플레이어가 고른 것
@@ -90,6 +112,8 @@ export interface Grade {
   evidence: { name: string; ok: boolean }[];
   /** 찾았어야 할 결정적 증거 중 내지 않은 것 */
   missedKeys: { name: string; found: boolean }[];
+  /** 서술형 추리와 채점 결과 (예전 기록이면 null) */
+  narrative: { text: string; grade: NarrativeGrade | null } | null;
 }
 
 export function grade(full: FullCase, session: PlaySession, a: Accusation): Grade {
@@ -107,9 +131,13 @@ export function grade(full: FullCase, session: PlaySession, a: Accusation): Grad
   const evidenceMatched = Math.min(evidenceNeeded, evidence.filter((e) => e.ok).length);
   const missedKeys = [...keyIds].filter((id) => !a.evidenceIds.includes(id)).map((id) => ({ name: clueName(id), found: found.has(id) }));
 
-  const quizMax = c.quiz.length ? POINTS.quiz / c.quiz.length : 0;
+  const legacy = a.narrative === undefined;
+  const P = legacy ? LEGACY_POINTS : POINTS;
+  const ratio = narrativeRatio(a.narrativeGrade);
+
+  const quizMax = c.quiz.length ? P.quiz / c.quiz.length : 0;
   const items: GradeItem[] = [
-    { kind: "culprit", label: "범인", ok: culpritCorrect, mine: suspectName(a.culpritId), answer: suspectName(c.culpritId), points: culpritCorrect ? POINTS.culprit : 0, max: POINTS.culprit },
+    { kind: "culprit", label: "범인", ok: culpritCorrect, mine: suspectName(a.culpritId), answer: suspectName(c.culpritId), points: culpritCorrect ? P.culprit : 0, max: P.culprit },
     ...c.quiz.map((q, i) => ({
       kind: "quiz" as const,
       label: q.question,
@@ -125,19 +153,34 @@ export function grade(full: FullCase, session: PlaySession, a: Accusation): Grad
       ok: evidenceMatched === evidenceNeeded,
       mine: evidence.map((e) => e.name).join(", ") || "-",
       answer: `결정적 증거 ${keyIds.size}개 중 ${evidenceNeeded}개`,
-      points: evidenceNeeded ? (POINTS.evidence * evidenceMatched) / evidenceNeeded : POINTS.evidence,
-      max: POINTS.evidence,
+      points: evidenceNeeded ? (P.evidence * evidenceMatched) / evidenceNeeded : P.evidence,
+      max: P.evidence,
     },
+    ...(legacy
+      ? []
+      : [
+          {
+            kind: "narrative" as const,
+            label: "추리 서술",
+            ok: ratio >= 0.7,
+            mine: a.narrative || "-",
+            answer: narrativeSummary(a.narrativeGrade),
+            points: P.narrative * ratio,
+            max: P.narrative,
+          },
+        ]),
   ];
-  // 객관식이 없는 사건은 그 30점을 그냥 준다 (범인과 증거만으로 채점)
-  const raw = items.reduce((sum, it) => sum + it.points, 0) + (c.quiz.length ? 0 : POINTS.quiz);
-  const hintPenalty = session.hintsUsed * HINT_PENALTY;
+  // 객관식이 없는 사건은 그 점수를 그냥 준다 (범인과 증거만으로 채점)
+  const raw = items.reduce((sum, it) => sum + it.points, 0) + (c.quiz.length ? 0 : P.quiz);
+  const hintPenalty = session.hintsUsed * (legacy ? LEGACY_HINT_PENALTY : HINT_PENALTY);
   const score = Math.max(0, Math.round(raw - hintPenalty));
   const ending = culpritCorrect && score >= SOLVED_SCORE ? "correct" : culpritCorrect ? "partial" : "wrong";
 
-  const slots = 1 + c.quiz.length + evidenceNeeded;
-  const hits = (culpritCorrect ? 1 : 0) + quizCorrect.filter(Boolean).length + evidenceMatched;
+  // 일치율: 서술은 한 칸으로 치고 채점 비율만큼 맞힌 것으로 본다
+  const slots = 1 + c.quiz.length + evidenceNeeded + (legacy ? 0 : 1);
+  const hits = (culpritCorrect ? 1 : 0) + quizCorrect.filter(Boolean).length + evidenceMatched + (legacy ? 0 : ratio);
   const matchRate = Math.round((100 * hits) / slots);
 
-  return { score, ending, culpritCorrect, quizCorrect, evidenceMatched, evidenceNeeded, hintPenalty, items, matchRate, evidence, missedKeys };
+  const narrative = legacy ? null : { text: a.narrative ?? "", grade: a.narrativeGrade ?? null };
+  return { score, ending, culpritCorrect, quizCorrect, evidenceMatched, evidenceNeeded, hintPenalty, items, matchRate, evidence, missedKeys, narrative };
 }

@@ -1,4 +1,5 @@
 import { z } from "zod";
+import { MAX_HINTS } from "@/lib/game/rules";
 
 /*
  * 사건 파일 형식 (JSON). 공식 사건 시드와, 나중에 사건 에디터의 저장/불러오기에 함께 쓴다.
@@ -22,7 +23,7 @@ export const CaseFile = z
     introHtml: z.string().max(50 * 1024).default(""),
     victim: z.string().max(2000).default(""),
     maxActions: z.number().int().min(5).max(500).nullable().default(null),
-    hints: z.array(z.string().max(500)).max(10).default([]),
+    hints: z.array(z.string().max(500)).max(MAX_HINTS, `힌트는 ${MAX_HINTS}개까지 넣을 수 있어요`).default([]), // 순서대로 공개. 뒤로 갈수록 결정적으로
     // 플레이 가이드: 화면에 단계별로 보여 주고, 목표를 이루면 다음 단계로 넘어간다 (스포일러이므로 튜토리얼 사건에만)
     guide: z
       .array(
@@ -54,6 +55,11 @@ export const CaseFile = z
     quiz: z
       .array(z.object({ question: z.string().min(1).max(200), options: z.array(z.string().min(1).max(200)).min(2).max(6), answer: z.number().int().min(0) }))
       .max(5)
+      .default([]),
+    // 서술형 추리 채점 포인트: 범행 방법, 거짓 알리바이와 그 근거, 숨긴 곳, 동기 등. 비우면 기본 기준으로 채점
+    rubric: z
+      .array(z.object({ point: z.string().min(1).max(300), weight: z.number().int().min(1).max(3).default(1) }))
+      .max(8)
       .default([]),
     endingCorrect: z.string().max(4000).default(""),
     endingPartial: z.string().max(4000).default(""),

@@ -1,15 +1,28 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
+import { HINT_PENALTY, MAX_EVIDENCE, MAX_NARRATIVE, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
 
 const TRAILER = "\u001e";
-const MAX_EVIDENCE = 3;
 const FOUND_PREFIX = "🔍 단서 발견: ";
 
 type Target = "narrator" | string; // 용의자 id
+
+/** 브라우저 저장소 읽기 (막혀 있으면 없음으로). 다른 탭에서 바뀌면 storage 이벤트로 다시 읽는다 */
+function readStorage(key: string) {
+  try {
+    return localStorage.getItem(key);
+  } catch {
+    return null;
+  }
+}
+function subscribeStorage(onChange: () => void) {
+  window.addEventListener("storage", onChange);
+  return () => window.removeEventListener("storage", onChange);
+}
 type ModelOption = { id: string; label: string; description: string; credits: number };
 
 export function PlayScreen({
@@ -41,6 +54,12 @@ export function PlayScreen({
   const [mobileTab, setMobileTab] = useState<"play" | "notebook">("play");
   const [showSuggestions, setShowSuggestions] = useState(true);
   const [showStory, setShowStory] = useState(false);
+  const [confirmGiveUp, setConfirmGiveUp] = useState(false);
+  const [notes, setNotes] = useState(initialState.notes);
+  const [savedNotes, setSavedNotes] = useState(initialState.notes);
+  const [savingNotes, setSavingNotes] = useState(false);
+  const [leaveTo, setLeaveTo] = useState<string | null>(null); // 저장 안 한 메모가 있는데 나가려던 주소
+  const [narrative, setNarrative] = useState(""); // 추리 서술 초안. 제출 창을 닫았다 열어도 남도록 여기에 둔다
   const [toast, setToast] = useState<string | null>(null);
   const [credits, setCredits] = useState(initialCredits);
   // 대화 상대마다 AI 가 마지막으로 추천한 다음 행동. 없으면 기본 추천을 보여 준다
@@ -297,21 +316,87 @@ export function PlayScreen({
     </div>
   );
 
+  // ── 메모: 자동 저장하지 않고 임시저장 버튼으로 저장. 저장 안 한 채 나가려 하면 붙잡는다 ──
+  const notesDirty = notes !== savedNotes;
+
+  // 임시저장 전의 메모는 이 브라우저에 백업해 둔다. 뒤로 가기·탭 종료처럼 붙잡을 수 없는 경우에도 돌아오면 되살린다
+  const backupKey = `nvel:notes:${state.sessionId}`;
+  function changeNotes(v: string) {
+    setNotes(v);
+    try {
+      if (v === savedNotes) localStorage.removeItem(backupKey);
+      else localStorage.setItem(backupKey, v);
+    } catch {}
+  }
+  // 지난번에 임시저장하지 않고 나간 메모가 있으면 수첩에서 되살릴 수 있게 한다 (서버 렌더링 때는 없음으로)
+  const backup = useSyncExternalStore(subscribeStorage, () => readStorage(backupKey), () => null);
+  const restorable = backup !== null && backup !== notes && !notesDirty ? backup : null;
+
+  async function saveNotes() {
+    setSavingNotes(true);
+    try {
+      await post("notes", { notes });
+      setSavedNotes(notes);
+      try {
+        localStorage.removeItem(backupKey);
+      } catch {}
+      flash("💾 메모를 임시저장했어요");
+      return true;
+    } catch (e) {
+      setError((e as Error).message);
+      return false;
+    } finally {
+      setSavingNotes(false);
+    }
+  }
+
+  useEffect(() => {
+    if (!notesDirty) return;
+    // 새로고침·탭 닫기: 브라우저 기본 확인 창
+    const onUnload = (e: BeforeUnloadEvent) => e.preventDefault();
+    // 사이트 안의 링크: 이동을 멈추고 임시저장 안내를 띄운다 (React 보다 먼저 받도록 document 캡처 단계)
+    // 같은 사이트의 다른 페이지로 가는 링크만. 바깥 주소는 beforeunload 가, 새 탭·다운로드·같은 페이지 안 이동은 그대로 둔다
+    const onClick = (e: MouseEvent) => {
+      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
+      const a = (e.target as Element | null)?.closest?.("a[href]");
+      if (!a || a.hasAttribute("download") || (a.getAttribute("target") ?? "_self") !== "_self") return;
+      const here = window.location;
+      const url = new URL(a.getAttribute("href")!, here.href);
+      if (url.origin !== here.origin || (url.pathname === here.pathname && url.search === here.search)) return;
+      e.preventDefault();
+      e.stopPropagation();
+      setLeaveTo(url.pathname + url.search + url.hash);
+    };
+    window.addEventListener("beforeunload", onUnload);
+    document.addEventListener("click", onClick, true);
+    return () => {
+      window.removeEventListener("beforeunload", onUnload);
+      document.removeEventListener("click", onClick, true);
+    };
+  }, [notesDirty]);
+
+  // 사건을 끝낼 때(추리 제출·포기)는 따로 묻지 않고 메모를 저장해 둔다
+  async function finish(path: "giveup" | null) {
+    if (notesDirty) await saveNotes();
+    try {
+      if (path) await post(path);
+      router.push(`/play/${state.sessionId}/result`);
+    } catch (e) {
+      setError((e as Error).message);
+    }
+  }
+
   const notebook = (
     <Notebook
       state={state}
       onOpenClue={setOpenClue}
       onHint={hint}
-      onAccuse={() => setAccusing(true)}
-      onGiveUp={async () => {
-        try {
-          await post("giveup");
-          router.push(`/play/${state.sessionId}/result`);
-        } catch (e) {
-          setError((e as Error).message);
-        }
-      }}
-      sessionId={state.sessionId}
+      notes={notes}
+      onNotesChange={changeNotes}
+      restorable={restorable}
+      notesDirty={notesDirty}
+      savingNotes={savingNotes}
+      onSaveNotes={saveNotes}
     />
   );
 
@@ -323,6 +408,7 @@ export function PlayScreen({
           {(["play", "notebook"] as const).map((t) => (
             <button key={t} onClick={() => setMobileTab(t)} className={`rounded-md px-3 py-1 ${mobileTab === t ? "bg-white shadow-sm dark:bg-zinc-900" : "text-zinc-500"}`}>
               {t === "play" ? "수사" : `수첩 (${state.foundClues.length})`}
+              {t === "notebook" && notesDirty && <span className="ml-1 text-amber-500" title="저장 안 한 메모">●</span>}
             </button>
           ))}
         </div>
@@ -334,11 +420,20 @@ export function PlayScreen({
       {/* 대화 */}
       <section className={`flex h-[calc(100dvh-7rem)] min-h-[420px] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white lg:h-auto lg:min-h-0 dark:border-zinc-800 dark:bg-zinc-900 ${mobileTab === "play" ? "" : "hidden lg:flex"}`}>
         <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
-          {header}
-          <div className="hidden lg:block">{badges}</div>
+          <div className="min-w-0">{header}</div>
+          <div className="flex shrink-0 items-center gap-2">
+            <div className="hidden lg:block">{badges}</div>
+            {/* 사건을 끝내는 버튼은 수첩과 따로, 대화창 위에 */}
+            <button onClick={() => setAccusing(true)} className="rounded-lg bg-zinc-900 px-3 py-1.5 text-sm font-semibold text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
+              ⚖️ 추리 제출
+            </button>
+            <button onClick={() => setConfirmGiveUp(true)} title="수사 포기" className="rounded-lg px-2 py-1.5 text-sm text-zinc-500 hover:bg-zinc-100 hover:text-zinc-800 dark:hover:bg-zinc-800 dark:hover:text-zinc-200">
+              🏳<span className="hidden sm:inline"> 포기</span>
+            </button>
+          </div>
         </div>
 
-        {data.guide.length > 0 && <Guide data={data} state={state} messages={messages} />}
+        {data.guide.length > 0 && <Guide data={data} state={state} messages={messages} onHint={hint} />}
 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {threadMessages.length === 0 && (
@@ -476,7 +571,50 @@ export function PlayScreen({
 
       {openClue && <ClueModal clue={openClue} onClose={() => setOpenClue(null)} />}
       {showStory && <StoryModal data={data} onClose={() => setShowStory(false)} />}
-      {accusing && <AccuseModal data={data} state={state} onClose={() => setAccusing(false)} onDone={() => router.push(`/play/${state.sessionId}/result`)} />}
+      {accusing && <AccuseModal data={data} state={state} narrative={narrative} onNarrative={setNarrative} onClose={() => setAccusing(false)} onDone={() => finish(null)} />}
+      {confirmGiveUp && (
+        <Modal title="🏳 수사 포기" onClose={() => setConfirmGiveUp(false)}>
+          <p className="text-sm leading-relaxed">수사를 포기하면 사건은 미제로 남고 진상이 공개돼요. 나중에 다시 도전할 수 있어요.</p>
+          <div className="mt-5 flex justify-end gap-2 text-sm">
+            <button onClick={() => setConfirmGiveUp(false)} className="rounded-lg px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              계속 수사
+            </button>
+            <button onClick={() => finish("giveup")} className="rounded-lg bg-zinc-700 px-4 py-2 font-medium text-white hover:bg-zinc-600">
+              포기하기
+            </button>
+          </div>
+        </Modal>
+      )}
+      {leaveTo && (
+        <Modal title="💾 메모를 저장하지 않았어요" onClose={() => setLeaveTo(null)}>
+          <p className="text-sm leading-relaxed">수첩의 메모가 아직 저장되지 않았어요. 나가기 전에 임시저장을 눌러 주세요.</p>
+          <div className="mt-5 flex flex-wrap justify-end gap-2 text-sm">
+            <button onClick={() => setLeaveTo(null)} className="rounded-lg px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+              머무르기
+            </button>
+            <button
+              onClick={() => {
+                setSavedNotes(notes); // 버리기로 했으니 다시 붙잡지도, 되살리라고 하지도 않는다
+                try {
+                  localStorage.removeItem(backupKey);
+                } catch {}
+                router.push(leaveTo);
+              }}
+              className="rounded-lg border border-zinc-300 px-4 py-2 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+            >
+              저장하지 않고 나가기
+            </button>
+            <button
+              onClick={async () => {
+                if (await saveNotes()) router.push(leaveTo);
+              }}
+              className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700"
+            >
+              💾 임시저장하고 나가기
+            </button>
+          </div>
+        </Modal>
+      )}
       {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-zinc-900">{toast}</div>}
     </div>
   );
@@ -512,7 +650,7 @@ function ActionsBadge({ state }: { state: PublicState }) {
  * 프롤로그 사건의 단계별 안내. 목표를 이뤘는지는 화면에 이미 있는 기록(이동·발견한 단서·대화)으로 판단한다.
  * 이룬 단계는 건너뛰므로 순서를 바꿔 진행해도 맞는 단계가 보인다
  */
-function Guide({ data, state, messages }: { data: PublicCase; state: PublicState; messages: PublicMessage[] }) {
+function Guide({ data, state, messages, onHint }: { data: PublicCase; state: PublicState; messages: PublicMessage[]; onHint: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [folded, setFolded] = useState(false);
 
@@ -568,7 +706,24 @@ function Guide({ data, state, messages }: { data: PublicCase; state: PublicState
             ))}
           </ol>
         ) : (
-          <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{step.body}</p>
+          <div className="mt-1 max-h-48 overflow-y-auto">
+            <p className="whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{step.body}</p>
+            {/* 마지막 단계(추리 제출): 자신이 없으면 제출 전에 여기서 바로 힌트를 볼 수 있게 */}
+            {current === data.guide.length - 1 && state.hintsTotal > 0 && (
+              <div className="mt-2 space-y-1.5">
+                {state.hints.map((h, i) => (
+                  <p key={i} className="rounded-lg bg-white px-3 py-2 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
+                    💡 {i + 1}. {h}
+                  </p>
+                ))}
+                {state.hintsUsed < state.hintsTotal && (
+                  <button type="button" onClick={onHint} className="rounded-lg border border-emerald-400 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-900/40">
+                    💡 힌트 {state.hintsUsed + 1} 보기 (-{HINT_PENALTY}점, {state.hintsTotal - state.hintsUsed}개 남음)
+                  </button>
+                )}
+              </div>
+            )}
+          </div>
         ))}
     </div>
   );
@@ -636,35 +791,28 @@ function LockInput({ label, disabled, onSubmit }: { label: string; disabled: boo
   );
 }
 
+/** 수첩: 단서·힌트·메모. 추리 제출과 수사 포기는 대화창 위에 따로 있다 */
 function Notebook({
   state,
   onOpenClue,
   onHint,
-  onAccuse,
-  onGiveUp,
-  sessionId,
+  notes,
+  onNotesChange,
+  restorable,
+  notesDirty,
+  savingNotes,
+  onSaveNotes,
 }: {
   state: PublicState;
   onOpenClue: (c: PublicClue) => void;
   onHint: () => void;
-  onAccuse: () => void;
-  onGiveUp: () => void;
-  sessionId: string;
+  notes: string;
+  onNotesChange: (v: string) => void;
+  restorable: string | null; // 지난번에 임시저장하지 않은 메모
+  notesDirty: boolean;
+  savingNotes: boolean;
+  onSaveNotes: () => void;
 }) {
-  const [notes, setNotes] = useState(state.notes);
-  const [confirmGiveUp, setConfirmGiveUp] = useState(false);
-  const [saved, setSaved] = useState(true);
-
-  // 입력을 멈추고 1초 뒤 저장
-  useEffect(() => {
-    if (saved) return;
-    const t = setTimeout(async () => {
-      await fetch(`/api/play/${sessionId}/notes`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ notes }) });
-      setSaved(true);
-    }, 1000);
-    return () => clearTimeout(t);
-  }, [notes, saved, sessionId]);
-
   return (
     <div className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
       <div>
@@ -688,8 +836,12 @@ function Notebook({
       <div>
         <div className="mb-2 flex items-center justify-between">
           <h3 className="text-sm font-semibold">💡 힌트</h3>
-          <button onClick={onHint} disabled={state.hintsUsed >= state.hintsTotal} className="text-xs font-medium text-red-600 hover:underline disabled:text-zinc-400 disabled:no-underline">
-            {state.hintsUsed >= state.hintsTotal ? "힌트 없음" : `힌트 보기 (-10점, ${state.hintsTotal - state.hintsUsed}개 남음)`}
+          <button
+            onClick={onHint}
+            disabled={state.hintsUsed >= state.hintsTotal}
+            className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:text-zinc-400 disabled:hover:bg-transparent dark:hover:bg-red-950/30"
+          >
+            {state.hintsUsed >= state.hintsTotal ? "힌트 없음" : `힌트 보기 (-${HINT_PENALTY}점, ${state.hintsTotal - state.hintsUsed}개 남음)`}
           </button>
         </div>
         {state.hints.map((h, i) => (
@@ -699,44 +851,39 @@ function Notebook({
         ))}
       </div>
 
+      {/* 메모는 자동 저장하지 않는다. 화면에서는 유지되고, 임시저장을 눌러야 저장된다 */}
       <div>
         <h3 className="mb-2 flex items-center justify-between text-sm font-semibold">
-          ✏️ 메모 <span className="text-xs font-normal text-zinc-400">{saved ? "저장됨" : "저장 중…"}</span>
+          ✏️ 메모
+          <span className={`text-xs font-normal ${notesDirty ? "text-amber-600" : "text-zinc-400"}`}>{savingNotes ? "저장 중…" : notesDirty ? "저장 안 됨" : "저장됨"}</span>
         </h3>
+        {restorable !== null && (
+          <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            <span>지난번에 임시저장하지 않은 메모가 있어요</span>
+            <button type="button" onClick={() => onNotesChange(restorable)} className="shrink-0 rounded-md px-2 py-1 font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">
+              되살리기
+            </button>
+          </div>
+        )}
         <textarea
           value={notes}
-          onChange={(e) => {
-            setNotes(e.target.value);
-            setSaved(false);
-          }}
+          onChange={(e) => onNotesChange(e.target.value)}
           rows={6}
           maxLength={10000}
           placeholder="추리를 정리해 보세요"
           className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950"
         />
-      </div>
-
-      <button onClick={onAccuse} className="w-full rounded-xl bg-zinc-900 py-3 font-semibold text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900 dark:hover:bg-zinc-200">
-        ⚖️ 추리 제출
-      </button>
-
-      {confirmGiveUp ? (
-        <div className="space-y-2 rounded-xl bg-zinc-100 p-3 text-sm dark:bg-zinc-800">
-          <p>수사를 포기하면 사건은 미제로 남고 진상이 공개돼요. 나중에 다시 도전할 수 있어요.</p>
-          <div className="flex justify-end gap-2">
-            <button onClick={() => setConfirmGiveUp(false)} className="rounded-lg px-3 py-1.5 hover:bg-white dark:hover:bg-zinc-900">
-              계속 수사
-            </button>
-            <button onClick={onGiveUp} className="rounded-lg bg-zinc-700 px-3 py-1.5 font-medium text-white hover:bg-zinc-600">
-              포기하기
-            </button>
-          </div>
+        <div className="mt-1.5 flex items-center justify-between gap-2">
+          <p className={`text-xs ${notesDirty ? "text-amber-600" : "text-zinc-400"}`}>{notesDirty ? "나가기 전에 임시저장을 눌러 주세요" : "임시저장한 메모는 다음에 이어서 볼 수 있어요"}</p>
+          <button
+            onClick={onSaveNotes}
+            disabled={!notesDirty || savingNotes}
+            className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+          >
+            💾 임시저장
+          </button>
         </div>
-      ) : (
-        <button onClick={() => setConfirmGiveUp(true)} className="w-full text-center text-sm text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200">
-          🏳 수사 포기
-        </button>
-      )}
+      </div>
     </div>
   );
 }
@@ -805,7 +952,21 @@ function ClueModal({ clue, onClose }: { clue: PublicClue; onClose: () => void })
   );
 }
 
-function AccuseModal({ data, state, onClose, onDone }: { data: PublicCase; state: PublicState; onClose: () => void; onDone: () => void }) {
+function AccuseModal({
+  data,
+  state,
+  narrative,
+  onNarrative,
+  onClose,
+  onDone,
+}: {
+  data: PublicCase;
+  state: PublicState;
+  narrative: string;
+  onNarrative: (v: string) => void;
+  onClose: () => void;
+  onDone: () => void;
+}) {
   const [culpritId, setCulpritId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<number[]>(data.quiz.map(() => -1));
   const [evidence, setEvidence] = useState<string[]>([]);
@@ -816,13 +977,14 @@ function AccuseModal({ data, state, onClose, onDone }: { data: PublicCase; state
   async function submit() {
     setPending(true);
     setError(null);
+    // 서술 채점을 기다리느라 오래 걸릴 수 있다. 연결이 끊겨도 버튼이 멈춰 있지 않게
     const res = await fetch(`/api/play/${state.sessionId}/accuse`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ culpritId, answers, evidenceIds: evidence }),
-    });
-    if (!res.ok) {
-      setError((await res.json().catch(() => ({}))).error ?? "제출하지 못했습니다");
+      body: JSON.stringify({ culpritId, answers, evidenceIds: evidence, narrative }),
+    }).catch(() => null);
+    if (!res?.ok) {
+      setError((await res?.json().catch(() => ({})))?.error ?? "제출하지 못했어요. 연결을 확인하고 다시 제출해 주세요");
       setPending(false);
       return;
     }
@@ -831,7 +993,13 @@ function AccuseModal({ data, state, onClose, onDone }: { data: PublicCase; state
 
   return (
     <Modal title="⚖️ 추리 제출" onClose={onClose}>
-      <p className="mb-4 text-sm text-zinc-500">제출하면 사건이 끝나고 결과가 공개됩니다. 다시 수정할 수 없어요.</p>
+      <p className="mb-3 text-sm text-zinc-500">제출하면 사건이 끝나고 결과가 공개됩니다. 다시 수정할 수 없어요.</p>
+      {/* 채점 기준 (rules.ts 의 값 그대로) */}
+      <p className="mb-5 rounded-lg bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400">
+        📊 범인 {POINTS.culprit}점 · 질문 {POINTS.quiz}점 · 결정적 증거 {POINTS.evidence}점 · 추리 서술 {POINTS.narrative}점 · 힌트 1개당 -{HINT_PENALTY}점
+        <br />
+        범인을 맞히고 {SOLVED_SCORE}점 이상이면 해결, 범인을 틀리면 나머지를 다 맞혀도 실패예요.
+      </p>
 
       <fieldset className="mb-5">
         <legend className="mb-2 font-medium">범인은 누구인가?</legend>
@@ -885,9 +1053,31 @@ function AccuseModal({ data, state, onClose, onDone }: { data: PublicCase; state
         )}
       </fieldset>
 
+      <fieldset className="mb-5">
+        <legend className="mb-1 font-medium">
+          추리 서술 <span className="text-sm font-normal text-zinc-500">({POINTS.narrative}점)</span>
+        </legend>
+        <p className="mb-2 text-xs leading-relaxed text-zinc-500">
+          사건의 전말을 내 말로 정리해 보세요. 범인이 <b className="font-medium">언제·어떻게</b> 범행했는지, <b className="font-medium">왜</b> 그랬는지, 범인의 <b className="font-medium">알리바이가 왜 거짓인지</b>와 그 근거가 된 단서를 쓰면 점수가 올라가요. AI 가 사건의 진상과
+          비교해 채점해요. 문장력은 상관없어요.
+        </p>
+        <textarea
+          value={narrative}
+          onChange={(e) => onNarrative(e.target.value)}
+          rows={7}
+          maxLength={MAX_NARRATIVE}
+          placeholder={"예) ○○는 △시쯤 모두가 □□에 있는 틈을 타 …\n◇◇에 있었다는 말은 거짓이다. ☆☆ 기록에 그 시간 기록이 없기 때문이다 …"}
+          className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950"
+        />
+        <p className="mt-1 text-right text-xs text-zinc-400">
+          {narrative.length.toLocaleString()} / {MAX_NARRATIVE.toLocaleString()}
+          {!narrative.trim() && " · 비워 두면 서술 점수는 0점이에요"}
+        </p>
+      </fieldset>
+
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       <button onClick={submit} disabled={!ready || pending} className="w-full rounded-xl bg-red-600 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50">
-        {pending ? "제출 중..." : ready ? "제출하기" : "범인과 모든 질문의 답을 고르세요"}
+        {pending ? (narrative.trim() ? "AI 가 추리 서술을 채점하는 중..." : "제출 중...") : ready ? "제출하기" : "범인과 모든 질문의 답을 고르세요"}
       </button>
     </Modal>
   );

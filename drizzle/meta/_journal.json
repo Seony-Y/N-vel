@@ -57,6 +57,13 @@
       "when": 1792730396040,
       "tag": "0007_prologue_favorites",
       "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1792735349944,
+      "tag": "0008_narrative_rubric",
+      "breakpoints": true
     }
   ]
 }
