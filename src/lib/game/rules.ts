@@ -69,6 +69,7 @@ export const POINTS = { culprit: 40, quiz: 20, evidence: 15, narrative: 25 } as 
 const LEGACY_POINTS = { culprit: 50, quiz: 30, evidence: 20, narrative: 0 } as const;
 const LEGACY_HINT_PENALTY = 10; // 예전 기록은 제출할 때의 감점으로 다시 계산해야 저장된 점수·엔딩과 맞는다
 export const MAX_NARRATIVE = 3000; // 서술형 추리 글자 수
+export const GUIDE_NOTE_MIN = 40; // 가이드 '추리 정리하기' 단계: 메모를 이만큼 쓰면 다음 단계로
 
 const VERDICT_VALUE = { hit: 1, partial: 0.5, miss: 0 } as const;
 

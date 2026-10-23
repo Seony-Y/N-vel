@@ -15,7 +15,8 @@ export function parseSave(body: unknown): { file: CaseFile; isPublic: boolean } 
   if (!parsed.success) return { errors: parsed.error.issues.slice(0, 20).map((i) => (i.path.length ? `${i.path.join(".")}: ${i.message}` : i.message)) };
 
   // 사용자 사건은 slug 를 쓰지 않는다 (공식 사건 주소용)
-  const file = { ...parsed.data, slug: undefined };
+  // 가이드(정답으로 이끄는 안내)와 대본(AI 없이 무료로 진행)은 공식 사건 전용이라 저장하지 않는다
+  const file = { ...parsed.data, slug: undefined, guide: [], script: [] };
   if (outer.data.isPublic && file.rating === "19") return { errors: ["19세 사건은 성인 인증 기능이 준비될 때까지 공개할 수 없어요"] };
   return { file, isPublic: outer.data.isPublic };
 }

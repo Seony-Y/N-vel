@@ -51,7 +51,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
   const thread = isNarrator ? "narrator" : suspect!.id;
 
   // 대본 사건 (프롤로그): AI 를 부르지 않고 정해진 반응을 돌려준다. 크레딧을 쓰지 않는다
-  if (full.case.script.length) return scriptedAct({ id, userId, full, session, thread, message, presentClueId });
+  if (full.case.isOfficial && full.case.script.length) return scriptedAct({ id, userId, full, session, thread, message, presentClueId });
 
   // ── 크레딧 차감 (AI 를 부르기 전에). 모자라면 행동하지 않는다. 오류가 나면 아래에서 돌려준다 ──
   // 대화 기록은 차감과 상관없으니 같이 읽어 둔다 (DB 왕복을 줄여 첫 글자가 빨리 나오도록)

@@ -92,7 +92,8 @@ export interface QuizQuestion {
 export interface GuideStep {
   title: string;
   body: string;
-  goal?: { type: "visit" | "find" | "talk" | "present"; target: string; clue?: string }; // present: target 에게 clue 를 제시. 없으면 읽기만 하는 단계
+  // present: target 에게 clue 를 제시. note: 수첩 메모를 GUIDE_NOTE_MIN 자 넘게 쓰기 (target 없음). goal 이 없으면 읽기만 하는 단계
+  goal?: { type: "visit" | "find" | "talk" | "present" | "note"; target?: string; clue?: string };
 }
 
 /**

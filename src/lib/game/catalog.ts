@@ -12,8 +12,9 @@ const listCols = {
   estimatedMinutes: cases.estimatedMinutes,
   coverImage: cases.coverImage,
   isOfficial: cases.isOfficial,
-  hasGuide: sql<boolean>`jsonb_array_length(${cases.guide}) > 0`,
-  isFree: sql<boolean>`jsonb_array_length(${cases.script}) > 0`, // 대본 사건: AI 를 쓰지 않아 무료
+  // 가이드·대본은 공식 사건에서만 쓴다
+  hasGuide: sql<boolean>`${cases.isOfficial} and jsonb_array_length(${cases.guide}) > 0`,
+  isFree: sql<boolean>`${cases.isOfficial} and jsonb_array_length(${cases.script}) > 0`, // 대본 사건: AI 를 쓰지 않아 무료
 };
 
 export type CaseListItem = Awaited<ReturnType<typeof listPublicCases>>[number];

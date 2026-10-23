@@ -30,7 +30,7 @@ export const CaseFile = z
         z.object({
           title: z.string().min(1).max(60),
           body: z.string().min(1).max(1000),
-          goal: z.object({ type: z.enum(["visit", "find", "talk", "present"]), target: code, clue: code.optional() }).optional(),
+          goal: z.object({ type: z.enum(["visit", "find", "talk", "present", "note"]), target: code.optional(), clue: code.optional() }).optional(),
         }),
       )
       .max(20)
@@ -137,8 +137,9 @@ export const CaseFile = z
     for (const [i, g] of c.guide.entries()) {
       if (!g.goal) continue;
       const { type, target, clue } = g.goal;
+      if (type === "note") continue; // 수첩 메모 쓰기는 대상이 없다
       const want = type === "visit" ? L : type === "find" ? C : S;
-      if (!want.has(target)) issue(`가이드 ${i + 1}단계: 없는 대상 ${target}`);
+      if (!target || !want.has(target)) issue(`가이드 ${i + 1}단계: 없는 대상 ${target}`);
       if (type === "present" && !(clue && C.has(clue))) issue(`가이드 ${i + 1}단계: 제시할 단서를 지정하세요`);
     }
     for (const [i, s] of c.script.entries()) {

@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
-import { HINT_PENALTY, MAX_EVIDENCE, MAX_NARRATIVE, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
+import { GUIDE_NOTE_MIN, HINT_PENALTY, MAX_EVIDENCE, MAX_NARRATIVE, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
 
 const TRAILER = "\u001e";
 const FOUND_PREFIX = "🔍 단서 발견: ";
@@ -433,7 +433,7 @@ export function PlayScreen({
           </div>
         </div>
 
-        {data.guide.length > 0 && <Guide data={data} state={state} messages={messages} onHint={hint} />}
+        {data.guide.length > 0 && <Guide data={data} state={state} messages={messages} notes={notes} onHint={hint} />}
 
         <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {threadMessages.length === 0 && (
@@ -571,7 +571,7 @@ export function PlayScreen({
 
       {openClue && <ClueModal clue={openClue} onClose={() => setOpenClue(null)} />}
       {showStory && <StoryModal data={data} onClose={() => setShowStory(false)} />}
-      {accusing && <AccuseModal data={data} state={state} narrative={narrative} onNarrative={setNarrative} onClose={() => setAccusing(false)} onDone={() => finish(null)} />}
+      {accusing && <AccuseModal data={data} state={state} notes={notes} narrative={narrative} onNarrative={setNarrative} onClose={() => setAccusing(false)} onDone={() => finish(null)} />}
       {confirmGiveUp && (
         <Modal title="🏳 수사 포기" onClose={() => setConfirmGiveUp(false)}>
           <p className="text-sm leading-relaxed">수사를 포기하면 사건은 미제로 남고 진상이 공개돼요. 나중에 다시 도전할 수 있어요.</p>
@@ -650,7 +650,7 @@ function ActionsBadge({ state }: { state: PublicState }) {
  * 프롤로그 사건의 단계별 안내. 목표를 이뤘는지는 화면에 이미 있는 기록(이동·발견한 단서·대화)으로 판단한다.
  * 이룬 단계는 건너뛰므로 순서를 바꿔 진행해도 맞는 단계가 보인다
  */
-function Guide({ data, state, messages, onHint }: { data: PublicCase; state: PublicState; messages: PublicMessage[]; onHint: () => void }) {
+function Guide({ data, state, messages, notes, onHint }: { data: PublicCase; state: PublicState; messages: PublicMessage[]; notes: string; onHint: () => void }) {
   const [expanded, setExpanded] = useState(false);
   const [folded, setFolded] = useState(false);
 
@@ -665,11 +665,13 @@ function Guide({ data, state, messages, onHint }: { data: PublicCase; state: Pub
       case "find":
         return state.foundClues.some((c) => c.id === goal.target);
       case "talk":
-        return asked(goal.target);
+        return asked(goal.target ?? "");
       case "present": {
         const clue = state.foundClues.find((c) => c.id === goal.clue);
-        return !!clue && asked(goal.target, `[증거 제시: ${clue.name}]`);
+        return !!clue && asked(goal.target ?? "", `[증거 제시: ${clue.name}]`);
       }
+      case "note":
+        return notes.trim().length >= GUIDE_NOTE_MIN;
     }
   });
   const firstLeft = done.findIndex((d) => !d);
@@ -708,6 +710,12 @@ function Guide({ data, state, messages, onHint }: { data: PublicCase; state: Pub
         ) : (
           <div className="mt-1 max-h-48 overflow-y-auto">
             <p className="whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{step.body}</p>
+            {/* 메모 쓰기 단계: 얼마나 썼는지 */}
+            {step.goal?.type === "note" && (
+              <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">
+                ✏️ 수첩 메모 {Math.min(notes.trim().length, GUIDE_NOTE_MIN)} / {GUIDE_NOTE_MIN}자 · 수첩 탭(모바일) 또는 오른쪽 수첩의 메모 칸에 써 주세요
+              </p>
+            )}
             {/* 마지막 단계(추리 제출): 자신이 없으면 제출 전에 여기서 바로 힌트를 볼 수 있게 */}
             {current === data.guide.length - 1 && state.hintsTotal > 0 && (
               <div className="mt-2 space-y-1.5">
@@ -955,6 +963,7 @@ function ClueModal({ clue, onClose }: { clue: PublicClue; onClose: () => void })
 function AccuseModal({
   data,
   state,
+  notes,
   narrative,
   onNarrative,
   onClose,
@@ -962,6 +971,7 @@ function AccuseModal({
 }: {
   data: PublicCase;
   state: PublicState;
+  notes: string;
   narrative: string;
   onNarrative: (v: string) => void;
   onClose: () => void;
@@ -973,6 +983,7 @@ function AccuseModal({
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
   const ready = culpritId && answers.every((a) => a >= 0);
+  const checklist = data.guide.find((g) => g.goal?.type === "note")?.body;
 
   async function submit() {
     setPending(true);
@@ -1061,6 +1072,20 @@ function AccuseModal({
           사건의 전말을 내 말로 정리해 보세요. 범인이 <b className="font-medium">언제·어떻게</b> 범행했는지, <b className="font-medium">왜</b> 그랬는지, 범인의 <b className="font-medium">알리바이가 왜 거짓인지</b>와 그 근거가 된 단서를 쓰면 점수가 올라가요. AI 가 사건의 진상과
           비교해 채점해요. 문장력은 상관없어요.
         </p>
+        {/* 가이드 사건(프롤로그): '추리 정리하기' 단계의 체크리스트를 쓰면서 볼 수 있게 */}
+        {checklist && (
+          <details open className="mb-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs dark:bg-emerald-950/30">
+            <summary className="cursor-pointer font-semibold text-emerald-800 dark:text-emerald-200">🧭 서술 체크리스트</summary>
+            <p className="mt-1.5 whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{checklist}</p>
+          </details>
+        )}
+        {/* 수첩 메모는 옮겨 붙이지 않고 보기만. 서술은 직접 쓴다 */}
+        {notes.trim() && (
+          <details className="mb-2 rounded-lg bg-zinc-50 px-3 py-2 text-xs dark:bg-zinc-800/50">
+            <summary className="cursor-pointer font-semibold text-zinc-600 dark:text-zinc-300">📒 내 수첩 메모 보기</summary>
+            <p className="mt-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{notes.trim()}</p>
+          </details>
+        )}
         <textarea
           value={narrative}
           onChange={(e) => onNarrative(e.target.value)}

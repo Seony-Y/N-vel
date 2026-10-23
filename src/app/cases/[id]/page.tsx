@@ -119,13 +119,13 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
 
           {finished.some((s) => s.ending === "correct") && <p className="text-sm font-medium text-emerald-600">✅ 해결한 사건이에요. 다시 도전해서 더 높은 점수를 노려 보세요.</p>}
           {/* 대본 사건(프롤로그)은 AI 를 쓰지 않으므로 모델·크레딧 안내 대신 무료 표시 */}
-          {full.case.script.length > 0 && <p className="text-sm font-medium text-emerald-600">🎁 무료 사건이에요. 정해진 선택지로 진행하고 크레딧을 쓰지 않아요.</p>}
+          {full.case.isOfficial && full.case.script.length > 0 && <p className="text-sm font-medium text-emerald-600">🎁 무료 사건이에요. 정해진 선택지로 진행하고 크레딧을 쓰지 않아요.</p>}
           <CaseActions
             caseId={id}
             ongoingId={ongoing?.id ?? null}
             lastFinishedId={finished[0]?.id ?? null}
             loggedIn={!!userId}
-            {...(!full.case.script.length && { models: CHAT_MODELS.map(({ id, label, credits }) => ({ id, label, credits })), balance })}
+            {...(!(full.case.isOfficial && full.case.script.length) && { models: CHAT_MODELS.map(({ id, label, credits }) => ({ id, label, credits })), balance })}
             defaultModel={DEFAULT_CHAT_MODEL}
           />
 

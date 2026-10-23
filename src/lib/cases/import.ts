@@ -45,7 +45,7 @@ export async function writeCase(
     victim: file.victim,
     maxActions: file.maxActions,
     hints: file.hints,
-    guide: file.guide.map((g) => ({ ...g, ...(g.goal && { goal: { ...g.goal, target: id(g.goal.target), ...(g.goal.clue && { clue: id(g.goal.clue) }) } }) })),
+    guide: file.guide.map((g) => ({ ...g, ...(g.goal && { goal: { ...g.goal, ...(g.goal.target && { target: id(g.goal.target) }), ...(g.goal.clue && { clue: id(g.goal.clue) }) } }) })),
     script: file.script.map((s) => ({ ...s, where: id(s.where), ...(s.present && { present: id(s.present) }), reveals: s.reveals.map(id), requires: s.requires.map(id) })),
     culpritId: id(file.culprit),
     truth: file.truth,
@@ -149,7 +149,7 @@ export function toCaseFile(full: FullCase): CaseFile {
     victim: c.victim,
     maxActions: c.maxActions,
     hints: c.hints,
-    guide: c.guide.map((g) => ({ ...g, ...(g.goal && { goal: { ...g.goal, target: code.get(g.goal.target) ?? "", ...(g.goal.clue && { clue: code.get(g.goal.clue) }) } }) })),
+    guide: c.guide.map((g) => ({ ...g, ...(g.goal && { goal: { ...g.goal, ...(g.goal.target && { target: code.get(g.goal.target) ?? "" }), ...(g.goal.clue && { clue: code.get(g.goal.clue) }) } }) })),
     script: c.script.map((s) => ({
       ...s,
       where: code.get(s.where) ?? "",

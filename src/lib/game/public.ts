@@ -73,9 +73,10 @@ export function publicCase(full: FullCase): PublicCase {
     locations: full.locations.map(({ id, name, description }) => ({ id, name, description })),
     suspects: full.suspects.map(({ id, name, age, role, profile, portrait }) => ({ id, name, age, role, profile, portrait })),
     quiz: c.quiz.map(({ question, options }) => ({ question, options })),
-    guide: c.guide,
-    scripted: c.script.length > 0,
-    choices: c.script.flatMap(({ where, say, requires }) => (say ? [{ where, say, requires }] : [])),
+    // 가이드·대본은 공식 사건에서만
+    guide: c.isOfficial ? c.guide : [],
+    scripted: c.isOfficial && c.script.length > 0,
+    choices: (c.isOfficial ? c.script : []).flatMap(({ where, say, requires }) => (say ? [{ where, say, requires }] : [])),
   };
 }
 
