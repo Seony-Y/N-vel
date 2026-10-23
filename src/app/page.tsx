@@ -44,14 +44,14 @@ async function CaseList({ searchParams }: { searchParams: PageProps<"/">["search
 
       <div className="mt-12 flex flex-wrap items-center justify-between gap-2">
         <h2 className="text-lg font-semibold">사건 파일</h2>
-        <nav className="flex rounded-lg bg-zinc-100 p-1 text-sm dark:bg-zinc-800" aria-label="정렬">
+        <nav className="flex max-w-full overflow-x-auto rounded-lg bg-zinc-100 p-1 text-sm dark:bg-zinc-800" aria-label="정렬">
           {(Object.keys(CASE_SORTS) as CaseSort[]).map((k) => (
             <Link
               key={k}
               href={k === "recommended" ? "/" : `/?sort=${k}`}
               scroll={false}
               aria-current={sort === k ? "page" : undefined}
-              className={`rounded-md px-3 py-1 ${sort === k ? "bg-white font-medium shadow-sm dark:bg-zinc-900" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
+              className={`whitespace-nowrap rounded-md px-3 py-1 ${sort === k ? "bg-white font-medium shadow-sm dark:bg-zinc-900" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
             >
               {CASE_SORTS[k]}
             </Link>

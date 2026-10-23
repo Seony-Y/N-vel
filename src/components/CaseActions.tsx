@@ -66,8 +66,8 @@ export function CaseActions({
   }
 
   const big = size === "lg";
-  const primary = `rounded-xl bg-red-600 font-semibold text-white hover:bg-red-700 disabled:opacity-60 ${big ? "flex-1 py-3" : "flex-1 px-3 py-2 text-sm"}`;
-  const secondary = `rounded-xl border border-zinc-300 font-medium hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800 ${big ? "px-4 py-3 text-sm" : "px-3 py-2 text-sm"}`;
+  const primary = `whitespace-nowrap rounded-xl bg-red-600 font-semibold text-white hover:bg-red-700 disabled:opacity-60 ${big ? "flex-1 py-3" : "flex-1 px-3 py-2 text-sm"}`;
+  const secondary = `whitespace-nowrap rounded-xl border border-zinc-300 font-medium hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800 ${big ? "px-4 py-3 text-sm" : "px-3 py-2 text-sm"}`;
 
   return (
     <div className="space-y-3">
@@ -116,10 +116,10 @@ export function CaseActions({
       {loggedIn && models && (!ongoingId || confirmRestart) && (
         <label className="flex items-center justify-between gap-3 text-sm">
           <span className="text-zinc-500">AI 모델</span>
-          <select value={model} onChange={(e) => setModel(e.target.value)} className="rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 dark:border-zinc-700 dark:bg-zinc-900">
+          <select value={model} onChange={(e) => setModel(e.target.value)} className="rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 outline-none focus:outline-none dark:border-zinc-700 dark:bg-zinc-900">
             {models.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.label} · 행동당 {m.credits}크레딧
+                {m.label} (행동당 {m.credits}크레딧)
               </option>
             ))}
           </select>

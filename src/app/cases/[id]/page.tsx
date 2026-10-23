@@ -137,11 +137,15 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
               <ul className="space-y-1 text-sm">
                 {finished.map((s) => (
                   <li key={s.id}>
-                    <Link href={`/play/${s.id}/result`} className="flex justify-between rounded-lg px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
-                      <span>{s.updatedAt.toLocaleDateString("ko-KR")}</span>
+                    {/* 한 줄로: 좁은 화면에서는 '결과 보기' 글자를 빼고 › 만 */}
+                    <Link href={`/play/${s.id}/result`} className="flex items-center justify-between gap-3 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
+                      <span className="text-zinc-500">{s.updatedAt.toLocaleDateString("ko-KR")}</span>
                       <span>
                         {endingText(s.ending)}
-                        {s.ending !== "gaveup" && ` · ${s.score}점`} <span className="text-zinc-400">결과 보기 ›</span>
+                        {s.ending !== "gaveup" && ` · ${s.score}점`}
+                        <span className="ml-2 text-zinc-400">
+                          <span className="hidden sm:inline">결과 보기 </span>›
+                        </span>
                       </span>
                     </Link>
                   </li>

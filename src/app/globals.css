@@ -56,8 +56,10 @@ body {
   background: var(--background);
   color: var(--foreground);
   font-family: var(--font-sans);
-  /* 긴 단어·주소 하나 때문에 화면이 옆으로 밀리지 않도록 */
-  overflow-wrap: anywhere;
+  /* 한글은 단어(띄어쓰기) 단위로만 줄을 바꾼다. 좁은 칸에서 '추/천'처럼 글자마다 끊기지 않도록.
+     긴 주소처럼 한 단어가 칸을 넘칠 때만 그 단어를 끊는다 (anywhere 는 좁은 칸을 글자 하나 폭까지 줄여 버려서 쓰지 않는다) */
+  word-break: keep-all;
+  overflow-wrap: break-word;
   overflow-x: clip;
 }
 

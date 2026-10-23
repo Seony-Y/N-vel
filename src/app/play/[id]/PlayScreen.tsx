@@ -218,7 +218,7 @@ export function PlayScreen({
     try {
       await post("model", { model: id });
       const m = models.find((x) => x.id === id);
-      if (m) flash(`다음 행동부터 ${m.label} · 💎 ${m.credits}`);
+      if (m) flash(`다음 행동부터 ${m.label} (행동당 💎 ${m.credits})`);
     } catch (e) {
       setState((s) => ({ ...s, model: before }));
       setError((e as Error).message);
@@ -580,7 +580,7 @@ export function PlayScreen({
                     type="button"
                     onClick={() => setPresenting((v) => !v)}
                     disabled={busy || noCredits || !state.foundClues.length}
-                    className="rounded-lg border border-zinc-300 px-3 py-2.5 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                    className="shrink-0 whitespace-nowrap rounded-lg border border-zinc-300 px-3 py-2.5 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                   >
                     증거 제시
                   </button>
@@ -704,34 +704,56 @@ function ModelPicker({ models, value, disabled, onChange }: { models: ModelOptio
       onChange={(e) => onChange(e.target.value)}
       aria-label="AI 모델"
       title="AI 모델 (다음 행동부터 적용)"
-      className="rounded-full border border-zinc-200 bg-white py-1 pr-7 pl-2.5 text-xs font-medium disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
+      className="rounded-full border border-zinc-200 bg-white py-1 pr-7 pl-2.5 text-xs font-medium outline-none focus:outline-none disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
     >
       {models.map((m) => (
         <option key={m.id} value={m.id}>
-          {m.label} · 💎{m.credits}
+          {m.label} 💎{m.credits}
         </option>
       ))}
     </select>
   );
 }
 
-/** 쓴 행동 수. 목표 행동 수가 있으면 함께 보여 주고, 목표 안이면 초록·넘으면 주황 (막지는 않는다) */
+/**
+ * 쓴 행동 수. 목표 행동 수가 있으면 함께 보여 주고, 목표 안이면 초록·넘으면 주황 (막지는 않는다).
+ * 마우스를 올리거나 누르면 말풍선으로 설명한다 (휴대폰에서는 title 툴팁이 보이지 않아서)
+ */
 function ActionsBadge({ used, target }: { used: number; target: number | null }) {
-  const tip = "조사·질문·증거 제시 1번이 행동 1회예요 (비밀번호를 틀려도 1회). 장소 이동, 메모, 힌트, 추리 제출은 세지 않아요.";
-  if (!target) {
-    return (
-      <span title={tip} className="text-xs text-zinc-400">
-        행동 {used}회
-      </span>
-    );
-  }
-  const over = used > target;
+  const [open, setOpen] = useState(false);
+  const counted = "조사·질문·증거 제시 1번이 행동 1회예요 (비밀번호를 틀려도 1회). 장소 이동, 메모, 힌트, 추리 제출은 세지 않아요.";
+  const over = !!target && used > target;
   return (
-    <span
-      title={`${tip} 범인을 맞히고 목표(${target}회) 안에 풀면 효율 보너스 +${POINTS.efficiency}점, ${Math.floor(target * EFFICIENCY_HALF_RATIO)}회 안이면 +${POINTS.efficiency / 2}점. 행동 수에 제한은 없어요.`}
-      className={`rounded-full px-2.5 py-1 text-xs font-medium tabular-nums ${over ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"}`}
-    >
-      🎯 행동 {used} / 목표 {target}
+    <span className="relative inline-block" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
+      <button
+        type="button"
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+        className={
+          target
+            ? `rounded-full px-2.5 py-1 text-xs font-medium tabular-nums outline-none ${over ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"}`
+            : "text-xs text-zinc-400 outline-none"
+        }
+      >
+        {target ? `🎯 행동 ${used} / 목표 ${target}` : `행동 ${used}회`}
+      </button>
+      {open && (
+        <span role="tooltip" className="absolute right-0 top-full z-30 mt-1.5 block w-64 rounded-lg bg-zinc-900 px-3 py-2 text-left text-xs leading-relaxed text-white shadow-lg dark:bg-white dark:text-zinc-900">
+          {target ? (
+            <>
+              <b className="font-semibold">목표를 넘겨도 실패가 아니에요.</b> 행동 수에 제한은 없어요.
+              <br />
+              범인을 맞히면서 {target}회 안에 풀면 효율 보너스 <b className="font-semibold">+{POINTS.efficiency}점</b>, {Math.floor(target * EFFICIENCY_HALF_RATIO)}회 안이면 +{POINTS.efficiency / 2}점을 더 받아요.
+              <span className="mt-1 block opacity-70">{counted}</span>
+            </>
+          ) : (
+            <>
+              이 사건은 행동 수 제한도 보너스도 없어요.
+              <span className="mt-1 block opacity-70">{counted}</span>
+            </>
+          )}
+        </span>
+      )}
     </span>
   );
 }

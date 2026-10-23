@@ -37,7 +37,8 @@ export function FavoriteButton({ caseId, initial, loggedIn, variant = "icon" }: 
     return (
       <span className="relative inline-block">
         <button type="button" onClick={toggle} aria-busy={pending} aria-pressed={on} title={title} className={`rounded-md px-1.5 py-0.5 font-medium hover:bg-amber-50 dark:hover:bg-amber-950/30 ${on ? "text-amber-500" : "text-zinc-500 hover:text-amber-600"}`}>
-          {on ? "★" : "☆"} {label}
+          <Star on={on} className="mr-1 inline-block h-3.5 w-3.5 -translate-y-px align-middle" />
+          {label}
         </button>
         {tip}
       </span>
@@ -54,9 +55,18 @@ export function FavoriteButton({ caseId, initial, loggedIn, variant = "icon" }: 
         title={title}
         className={`flex h-8 w-8 items-center justify-center rounded-full bg-black/50 text-lg leading-none backdrop-blur-sm hover:bg-black/70 ${on ? "text-amber-400" : "text-white"}`}
       >
-        {on ? "★" : "☆"}
+        <Star on={on} className="h-[18px] w-[18px]" />
       </button>
       {tip}
     </span>
+  );
+}
+
+/** 별 아이콘. 글자(★☆)는 글꼴마다 기준선이 달라 동그라미 안에서 가운데가 맞지 않아 SVG 로 그린다 */
+function Star({ on, className }: { on: boolean; className?: string }) {
+  return (
+    <svg viewBox="0 0 24 24" aria-hidden className={className} fill={on ? "currentColor" : "none"} stroke="currentColor" strokeWidth={1.8} strokeLinejoin="round">
+      <path d="M12 3.2l2.7 5.6 6.1.8-4.5 4.2 1.1 6.1L12 17l-5.4 2.9 1.1-6.1-4.5-4.2 6.1-.8z" />
+    </svg>
   );
 }
