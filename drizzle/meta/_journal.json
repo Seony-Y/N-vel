@@ -71,6 +71,13 @@
       "when": 1792739603117,
       "tag": "0009_api_topups",
       "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1792742065693,
+      "tag": "0010_credit_requests",
+      "breakpoints": true
     }
   ]
 }

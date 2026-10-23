@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -137,7 +138,16 @@ function BalanceHint({ balance, perAction }: { balance: number; perAction: numbe
   return (
     <p className={`text-right text-xs ${actions === 0 ? "font-medium text-red-600" : "text-zinc-500"}`}>
       💎 {balance.toLocaleString()} 크레딧 · 이 모델로 약 {actions.toLocaleString()}회 행동 가능
-      {actions === 0 && " (크레딧이 부족해요. 더 저렴한 모델을 골라 보세요)"}
+      {actions === 0 && (
+        <>
+          {" "}
+          (크레딧이 부족해요. 더 저렴한 모델을 고르거나{" "}
+          <Link href="/my/credits#request" className="underline underline-offset-2">
+            크레딧을 요청
+          </Link>
+          해 주세요)
+        </>
+      )}
     </p>
   );
 }

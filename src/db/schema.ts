@@ -365,3 +365,24 @@ export const apiTopups = pgTable(
   },
   (t) => [index("api_topups_charged_idx").on(t.chargedAt)],
 );
+
+// ───────────────────────── 크레딧 요청 ─────────────────────────
+// 유료 충전이 없는 동안, 크레딧이 떨어진 사용자가 관리자에게 요청한다. 관리자가 지급하거나 넘긴다
+export const creditRequests = pgTable(
+  "credit_requests",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    message: text("message").notNull().default(""),
+    status: text("status", { enum: ["pending", "granted", "dismissed"] }).notNull().default("pending"),
+    amount: integer("amount"), // 지급한 크레딧 (지급했을 때만)
+    adminId: text("admin_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("credit_requests_status_idx").on(t.status, t.createdAt),
+    // 처리 안 된 요청은 한 사람에 하나만
+    uniqueIndex("credit_requests_one_pending").on(t.userId).where(sql`${t.status} = 'pending'`),
+  ],
+);

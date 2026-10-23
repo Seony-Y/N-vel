@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
@@ -452,7 +453,13 @@ export function PlayScreen({
           {error && <p className="border-t border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/40">{error}</p>}
           {noCredits && (
             <p className="border-t border-amber-200 bg-amber-50 px-4 py-2 text-sm text-amber-800 dark:border-amber-900 dark:bg-amber-950/40 dark:text-amber-200">
-              💎 크레딧이 부족해요 (행동 1회에 {creditsPerAction}크레딧). 위에서 더 저렴한 모델로 바꾸거나, 수첩에서 추리를 제출할 수 있어요.
+              💎 크레딧이 부족해요 (행동 1회에 {creditsPerAction}크레딧).{" "}
+              {credits >= Math.min(...models.map((m) => m.credits)) ? "위에서 더 저렴한 모델로 바꾸거나, " : ""}
+              아래 &lsquo;추리 제출&rsquo;로 지금까지 모은 단서로 추리를 낼 수 있어요 (크레딧이 들지 않아요). 크레딧이 더 필요하면{" "}
+              <Link href="/my/credits#request" className="font-medium underline underline-offset-2">
+                관리자에게 요청
+              </Link>
+              해 주세요.
             </p>
           )}
 

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { Suspense } from "react";
 import { ApiBudget } from "@/components/admin/ApiBudget";
+import { CreditRequests } from "@/components/admin/CreditRequests";
 import { EventsPanel } from "@/components/admin/EventsPanel";
 import { Panel, PeriodTabs, pct, StatTile, Table, Td } from "@/components/admin/ui";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -9,6 +10,7 @@ import { Loading } from "@/components/Loading";
 import { formatUsd } from "@/lib/ai/models";
 import { apiBudget, overview, perCase, perUser, recentEvents } from "@/lib/admin/stats";
 import { requireAdmin } from "@/lib/auth";
+import { pendingRequests } from "@/lib/credit-requests";
 
 export const metadata: Metadata = { title: "관리자 | N-vel" };
 
@@ -26,7 +28,7 @@ export default function AdminPage({ searchParams }: PageProps<"/admin">) {
 async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["searchParams"] }) {
   await requireAdmin("/admin");
   const days = Math.min(365, Math.max(1, Number((await searchParams).days) || 30));
-  const [o, users, cs, events, budget] = await Promise.all([overview(days), perUser(days), perCase(days), recentEvents(30), apiBudget()]);
+  const [o, users, cs, events, budget, requests] = await Promise.all([overview(days), perUser(days), perCase(days), recentEvents(30), apiBudget(), pendingRequests()]);
   const issues = (o.events.refusal ?? 0) + (o.events.rejected_clue ?? 0) + (o.events.truncated ?? 0);
 
   return (
@@ -44,6 +46,10 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
         <StatTile label="API 원가 (기간 내 사용)" value={formatUsd(o.costMicros)} sub={`호출 ${o.apiCalls.toLocaleString()}회`} />
         <StatTile label="오류" value={String(o.events.error ?? 0)} sub={`거절·규칙 위반·잘림 ${issues}`} alert={(o.events.error ?? 0) > 0} />
       </div>
+
+      <Panel title={`크레딧 요청${requests.length ? ` (${requests.length})` : ""}`}>
+        <CreditRequests rows={requests} />
+      </Panel>
 
       <Panel title="API 예산" action={<span className="text-xs text-zinc-500">원가는 토큰 수 × 가격표로 계산한 추정치예요</span>}>
         <ApiBudget {...budget} />
