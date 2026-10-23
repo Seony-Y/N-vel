@@ -77,6 +77,12 @@ export const auth = betterAuth({
       "/sign-in/social": { window: 60, max: 10 },
     },
   },
+  // BETTER_AUTH_URL 말고도 로그인 요청을 받아 줄 주소.
+  // 개발: localhost 와 127.0.0.1 둘 다. Vercel 미리보기 배포: 그 배포의 주소 (운영 별칭 주소는 proxy.ts 가 대표 주소로 보낸다)
+  trustedOrigins: [
+    ...(process.env.NODE_ENV === "development" ? ["http://localhost:3001", "http://127.0.0.1:3001"] : []),
+    ...(process.env.VERCEL_ENV === "preview" ? [process.env.VERCEL_URL, process.env.VERCEL_BRANCH_URL].filter(Boolean).map((h) => `https://${h}`) : []),
+  ],
   plugins: [nextCookies()],
 });
 

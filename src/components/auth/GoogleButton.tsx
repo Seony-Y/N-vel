@@ -2,7 +2,7 @@
 
 import { useState } from "react";
 import { authClient } from "@/lib/auth-client";
-import { VERIFIED_CALLBACK } from "@/lib/auth-rules";
+import { authErrorMessage, VERIFIED_CALLBACK } from "@/lib/auth-rules";
 
 /** 구글로 계속하기. 처음이면 가입(보너스 지급 후 환영 화면), 이미 있으면 로그인 */
 export function GoogleButton({ enabled, next = "/" }: { enabled: boolean; next?: string }) {
@@ -18,7 +18,7 @@ export function GoogleButton({ enabled, next = "/" }: { enabled: boolean; next?:
     setError(null);
     const { error } = await authClient.signIn.social({ provider: "google", callbackURL: next, newUserCallbackURL: VERIFIED_CALLBACK, errorCallbackURL: "/login?error=google" });
     if (error) {
-      setError("구글 로그인을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
+      setError(error.code === "INVALID_ORIGIN" || error.status === 429 ? authErrorMessage(error) : "구글 로그인을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
       setPending(false);
     }
   }

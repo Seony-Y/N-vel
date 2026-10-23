@@ -18,6 +18,7 @@ const ERROR_MESSAGES: Record<string, string> = {
 export function authErrorMessage(error: { code?: string; status?: number } | null | undefined): string {
   if (error?.code && ERROR_MESSAGES[error.code]) return ERROR_MESSAGES[error.code];
   if (error?.status === 429) return "요청이 너무 많습니다. 잠시 후 다시 시도해 주세요.";
+  if (error?.code === "INVALID_ORIGIN") return "지금 주소에서는 로그인할 수 없어요. 사이트의 대표 주소로 접속해 다시 시도해 주세요.";
   return "문제가 발생했습니다. 잠시 후 다시 시도해 주세요.";
 }
 
