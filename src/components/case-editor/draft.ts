@@ -29,6 +29,8 @@ export function emptyDraft(): Draft {
     victim: "",
     maxActions: 50,
     hints: [],
+    guide: [],
+    script: [],
     culprit: "S1",
     truth: "",
     quiz: [],

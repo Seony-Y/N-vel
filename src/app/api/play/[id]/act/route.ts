@@ -9,7 +9,8 @@ import { extractClueCodes, extractMoves, extractSuggestions, narratorPrompt, sus
 import { publicState } from "@/lib/game/public";
 import { actionsLeft, breakpointFor, discoverable, tellableBy, validateRequested } from "@/lib/game/rules";
 import { addMessages, addProgress, openSession } from "@/lib/game/session";
-import type { Clue } from "@/types/db";
+import type { FullCase } from "@/lib/game/load";
+import type { Clue, PlaySession } from "@/types/db";
 
 const Body = z.object({
   target: z.string().min(1), // "narrator" 또는 용의자 id
@@ -48,6 +49,9 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
   if (presentClueId && !session.foundClueIds.includes(presentClueId)) return Response.json({ error: "아직 찾지 않은 단서입니다" }, { status: 400 });
 
   const thread = isNarrator ? "narrator" : suspect!.id;
+
+  // 대본 사건 (프롤로그): AI 를 부르지 않고 정해진 반응을 돌려준다. 크레딧을 쓰지 않는다
+  if (full.case.script.length) return scriptedAct({ id, userId, full, session, thread, message, presentClueId });
 
   // ── 크레딧 차감 (AI 를 부르기 전에). 모자라면 행동하지 않는다. 오류가 나면 아래에서 돌려준다 ──
   // 대화 기록은 차감과 상관없으니 같이 읽어 둔다 (DB 왕복을 줄여 첫 글자가 빨리 나오도록)
@@ -170,6 +174,33 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
   });
 
   return new Response(body, { headers: { "Content-Type": "text/plain; charset=utf-8" } });
+}
+
+/**
+ * 대본대로 응답한다. 선택지는 지금 장소(조사) 또는 그 용의자(심문)의 것이어야 하고, 필요한 단서를 찾았어야 한다.
+ * 증거 제시는 무너지는 지점도 평소처럼 서버가 처리하고, 대본에 반응이 없으면 기본 문구를 보여 준다
+ */
+async function scriptedAct(p: { id: string; userId: string; full: FullCase; session: PlaySession; thread: string; message: string; presentClueId?: string }) {
+  const { id, full, thread, message, presentClueId } = p;
+  const found = new Set(p.session.foundClueIds);
+  const where = thread === "narrator" ? p.session.currentLocationId : thread;
+  const clue = presentClueId ? full.clues.find((c) => c.id === presentClueId)! : null;
+  const line = full.case.script.find((s) => s.where === where && (clue ? s.present === clue.id : !s.present && s.say === message) && s.requires.every((r) => found.has(r)));
+  if (!clue && !line) return Response.json({ error: "프롤로그에서는 화면의 선택지로만 행동할 수 있어요" }, { status: 400 });
+
+  const bp = clue ? breakpointFor(full, p.session, thread, clue.id) : null;
+  const revealIds = [...(line?.reveals ?? []), ...(bp?.revealsClueId ? [bp.revealsClueId] : [])];
+  const revealed = full.clues.filter((c) => revealIds.includes(c.id) && !found.has(c.id));
+  const reply = line?.reply ?? "(그 증거에는 별다른 반응이 없다. 다른 증거를 보여 주거나 다른 사람에게 가져가 보자.)";
+  const events = revealed.map((c) => `🔍 단서 발견: ${c.name}`);
+
+  const userText = clue ? `[증거 제시: ${clue.name}] ${clue.description}${message ? `\n${message}` : ""}` : message;
+  const [session, , credits] = await Promise.all([
+    addProgress(id, { actions: 1, clueIds: revealed.map((c) => c.id), brokenIds: bp ? [bp.id] : [] }),
+    addMessages(id, thread, [{ role: "user", content: userText }, { role: "assistant", content: reply }, ...events.map((content) => ({ role: "event" as const, content }))]),
+    getBalance(p.userId),
+  ]);
+  return new Response(reply + TRAILER + JSON.stringify({ state: publicState(full, session), events, talkTo: null, suggestions: [], credits }), { headers: { "Content-Type": "text/plain; charset=utf-8" } });
 }
 
 /** Claude 스트림을 텍스트 조각으로. 끝나면 final() 로 거절 여부와 사용량을 얻는다 */

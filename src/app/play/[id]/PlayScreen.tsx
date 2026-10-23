@@ -39,13 +39,15 @@ export function PlayScreen({
   const [presenting, setPresenting] = useState(false);
   const [accusing, setAccusing] = useState(false);
   const [mobileTab, setMobileTab] = useState<"play" | "notebook">("play");
+  const [showSuggestions, setShowSuggestions] = useState(true);
+  const [showStory, setShowStory] = useState(false);
   const [toast, setToast] = useState<string | null>(null);
   const [credits, setCredits] = useState(initialCredits);
   // 대화 상대마다 AI 가 마지막으로 추천한 다음 행동. 없으면 기본 추천을 보여 준다
   const [suggested, setSuggested] = useState<Record<string, string[]>>({});
   const model = models.find((m) => m.id === state.model) ?? models.find((m) => m.id === defaultModel) ?? models[0];
   const creditsPerAction = model.credits;
-  const noCredits = credits < creditsPerAction;
+  const noCredits = !data.scripted && credits < creditsPerAction; // 대본 사건은 무료
 
   const suspect = data.suspects.find((s) => s.id === target) ?? null;
   const location = data.locations.find((l) => l.id === state.currentLocationId) ?? null;
@@ -54,13 +56,19 @@ export function PlayScreen({
   const outOfActions = state.actionsLeft === 0;
   const badges = (
     <div className="flex flex-wrap items-center gap-1.5">
-      <ModelPicker models={models} value={model.id} disabled={busy} onChange={changeModel} />
-      <span
+      {data.scripted ? (
+        <span className="rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-medium text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200">🎁 무료</span>
+      ) : (
+        <>
+          <ModelPicker models={models} value={model.id} disabled={busy} onChange={changeModel} />
+          <span
         className={`rounded-full px-2.5 py-1 text-xs font-medium ${noCredits ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"}`}
         title={`행동 1회에 ${creditsPerAction}크레딧`}
       >
-        💎 {credits.toLocaleString()}
-      </span>
+            💎 {credits.toLocaleString()}
+          </span>
+        </>
+      )}
       <ActionsBadge state={state} />
     </div>
   );
@@ -201,8 +209,13 @@ export function PlayScreen({
   // 기본 추천: 아직 AI 추천이 없을 때 (처음, 새로고침 뒤, 대화 상대를 막 바꿨을 때)
   const otherLocation = data.locations.find((l) => l.id !== state.currentLocationId);
   const lastClue = state.foundClues.at(-1);
-  const suggestions =
-    suggested[thread]?.length
+  // 대본 사건: 지금 장소·상대의 선택지 중 아직 고르지 않았고 필요한 단서를 찾은 것
+  const foundIds = new Set(state.foundClues.map((c) => c.id));
+  const asked = new Set(threadMessages.filter((m) => m.role === "user").map((m) => m.content));
+  const here = suspect ? suspect.id : state.currentLocationId;
+  const suggestions = data.scripted
+    ? data.choices.filter((c) => c.where === here && c.requires.every((r) => foundIds.has(r)) && !asked.has(c.say)).map((c) => c.say)
+    : suggested[thread]?.length
       ? suggested[thread]
       : suspect
         ? ["사건 당일 밤 어디에 계셨나요?", "피해자와는 어떤 사이였나요?", lastClue ? `「${lastClue.name}」에 대해 아는 게 있나요?` : "혹시 수상한 걸 보거나 들으셨나요?"]
@@ -231,6 +244,20 @@ export function PlayScreen({
 
   const sidebar = (
     <div className="space-y-5">
+      {/* 지금 수사 중인 사건. 누르면 사건 개요를 다시 볼 수 있다 */}
+      <button
+        type="button"
+        onClick={() => setShowStory(true)}
+        className="block w-full rounded-xl border border-zinc-200 bg-white px-3 py-2 text-left hover:border-red-300 lg:py-2.5 dark:border-zinc-800 dark:bg-zinc-900"
+      >
+        <div className="hidden text-xs text-zinc-500 lg:block">📁 수사 중인 사건</div>
+        <div className="line-clamp-1 text-sm font-semibold lg:mt-0.5 lg:line-clamp-2">
+          <span className="lg:hidden">📁 </span>
+          {data.title}
+          <span className="ml-1 text-xs font-medium text-red-600 lg:hidden">개요 ›</span>
+        </div>
+        <div className="mt-1 hidden text-xs font-medium text-red-600 lg:block">사건 개요 보기</div>
+      </button>
       <div>
         <h3 className="mb-2 text-xs font-semibold uppercase tracking-wider text-zinc-400">장소</h3>
         <div className="flex flex-wrap gap-1.5 lg:flex-col">
@@ -305,15 +332,17 @@ export function PlayScreen({
       <aside className={`shrink-0 lg:block lg:w-52 lg:overflow-y-auto ${mobileTab === "play" ? "mb-3" : "hidden"}`}>{sidebar}</aside>
 
       {/* 대화 */}
-      <section className={`flex min-h-[60vh] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white lg:min-h-0 dark:border-zinc-800 dark:bg-zinc-900 ${mobileTab === "play" ? "" : "hidden lg:flex"}`}>
+      <section className={`flex h-[calc(100dvh-7rem)] min-h-[420px] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white lg:h-auto lg:min-h-0 dark:border-zinc-800 dark:bg-zinc-900 ${mobileTab === "play" ? "" : "hidden lg:flex"}`}>
         <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           {header}
           <div className="hidden lg:block">{badges}</div>
         </div>
 
-        <div className="flex-1 space-y-3 overflow-y-auto px-4 py-4">
+        {data.guide.length > 0 && <Guide data={data} state={state} messages={messages} />}
+
+        <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
           {threadMessages.length === 0 && (
-            <p className="py-8 text-center text-sm text-zinc-400">{suspect ? `${suspect.name}에게 질문해 보세요. 수첩의 단서를 증거로 제시할 수도 있어요.` : "무엇을 조사할지 입력해 보세요. 예) 책상 서랍을 열어본다"}</p>
+            <p className="py-8 text-center text-sm text-zinc-400">{suspect ? `${suspect.name}에게 질문해 보세요. 수첩의 단서를 증거로 제시할 수도 있어요.` : data.scripted ? "아래 선택지에서 할 행동을 골라 보세요." : "무엇을 조사할지 입력해 보세요. 예) 책상 서랍을 열어본다"}</p>
           )}
           {threadMessages.map((m) => {
             const found = m.role === "event" && m.content.startsWith(FOUND_PREFIX) ? state.foundClues.find((c) => c.name === m.content.slice(FOUND_PREFIX.length).trim()) : null;
@@ -340,85 +369,113 @@ export function PlayScreen({
           </p>
         )}
 
-        {/* 추천 행동: 누르면 바로 보낸다. 직접 입력도 그대로 가능 */}
-        {!outOfActions && !noCredits && (
-          <div className="flex flex-col gap-1 border-t border-zinc-200 px-3 pt-2.5 dark:border-zinc-800">
-            {suggestions.map((s) => (
-              <button
-                key={s}
-                type="button"
-                disabled={busy}
-                onClick={() => act(s)}
-                title={`보내기 (💎 ${creditsPerAction})`}
-                className="w-full rounded-lg border border-zinc-300 px-3 py-1.5 text-left text-xs text-zinc-700 hover:border-red-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-800 dark:hover:bg-red-950/30 dark:hover:text-red-300"
-              >
-                {s}
-              </button>
-            ))}
+        {/* 추천 행동: 내 말풍선처럼 오른쪽에 띄우고, 누르면 바로 보낸다. 접어 둘 수 있다. 직접 입력도 그대로 가능 (대본 사건은 선택지로만) */}
+        {!outOfActions && !noCredits && (suggestions.length > 0 || data.scripted) && (
+          <div className="border-t border-zinc-200 px-3 py-2 dark:border-zinc-800">
+            <button
+              type="button"
+              onClick={() => setShowSuggestions((v) => !v)}
+              aria-expanded={showSuggestions}
+              className="flex w-full items-center justify-between text-xs text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"
+            >
+              <span>
+                💡 {data.scripted ? "선택지" : "추천 행동"}
+                {suggestions.length > 0 && ` ${suggestions.length}`}
+              </span>
+              <span>{showSuggestions ? "닫기 ▾" : "보기 ▴"}</span>
+            </button>
+            {showSuggestions && (
+              <div className="mt-2 flex max-h-40 flex-wrap justify-end gap-1.5 overflow-y-auto">
+                {suggestions.map((s) => (
+                  <button
+                    key={s}
+                    type="button"
+                    disabled={busy}
+                    onClick={() => act(s)}
+                    title={data.scripted ? "고르기" : `보내기 (💎 ${creditsPerAction})`}
+                    className="max-w-[85%] rounded-2xl rounded-br-sm border border-red-300 bg-red-50 px-3 py-1.5 text-left text-sm text-red-800 hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/60"
+                  >
+                    {s}
+                  </button>
+                ))}
+                {data.scripted && !suggestions.length && (
+                  <p className="w-full text-right text-xs text-zinc-400">{suspect ? "더 물어볼 건 없어요. 증거를 제시하거나 다른 곳으로 가 보세요." : "여기서 할 수 있는 조사는 다 했어요. 다른 장소나 용의자에게 가 보세요."}</p>
+                )}
+              </div>
+            )}
           </div>
         )}
 
-        <form
-          onSubmit={(e) => {
-            e.preventDefault();
-            if (input.trim()) act(input.trim());
-          }}
-          className="flex items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800"
-        >
-          {suspect && (
-            <div className="relative">
-              <button
-                type="button"
-                onClick={() => setPresenting((v) => !v)}
-                disabled={busy || outOfActions || noCredits || !state.foundClues.length}
-                className="rounded-lg border border-zinc-300 px-3 py-2.5 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-              >
-                증거 제시
-              </button>
-              {presenting && (
-                <div className="absolute bottom-full left-0 z-10 mb-2 max-h-72 w-72 max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
-                  {state.foundClues.map((c) => (
-                    <button
-                      key={c.id}
-                      type="button"
-                      onClick={() => {
-                        setPresenting(false);
-                        act(input.trim(), c.id);
-                      }}
-                      className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
-                    >
-                      <div className="font-medium">{c.name}</div>
-                      <div className="text-xs text-zinc-500">{c.source}</div>
-                    </button>
-                  ))}
-                </div>
-              )}
-            </div>
-          )}
-          <textarea
-            value={input}
-            onChange={(e) => setInput(e.target.value)}
-            onKeyDown={(e) => {
-              if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
-                e.preventDefault();
-                if (input.trim()) act(input.trim());
-              }
+        {(!data.scripted || suspect) && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (input.trim()) act(input.trim());
             }}
-            rows={1}
-            maxLength={1000}
-            disabled={busy || outOfActions || noCredits}
-            placeholder={outOfActions ? "행동 횟수를 모두 썼습니다. 추리를 제출하세요" : suspect ? `${suspect.name}에게 질문하기` : "무엇을 조사할까요?"}
-            className="max-h-32 min-h-[42px] min-w-0 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
-          />
-          <button type="submit" disabled={busy || outOfActions || noCredits || !input.trim()} className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
-            {busy ? "…" : "보내기"}
-          </button>
-        </form>
+            className="flex items-end gap-2 border-t border-zinc-200 p-3 dark:border-zinc-800"
+          >
+            {suspect && (
+              <div className="relative">
+                <button
+                  type="button"
+                  onClick={() => setPresenting((v) => !v)}
+                  disabled={busy || outOfActions || noCredits || !state.foundClues.length}
+                  className="rounded-lg border border-zinc-300 px-3 py-2.5 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
+                >
+                  증거 제시
+                </button>
+                {presenting && (
+                  <div className="absolute bottom-full left-0 z-10 mb-2 max-h-72 w-72 max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                    {state.foundClues.map((c) => (
+                      <button
+                        key={c.id}
+                        type="button"
+                        onClick={() => {
+                          setPresenting(false);
+                          act(input.trim(), c.id);
+                        }}
+                        className="block w-full rounded-lg px-3 py-2 text-left text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800"
+                      >
+                        <div className="font-medium">{c.name}</div>
+                        <div className="text-xs text-zinc-500">{c.source}</div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+              </div>
+            )}
+            {data.scripted ? (
+              <span className="self-center text-xs text-zinc-400">수첩의 단서를 들이밀어 반응을 볼 수 있어요</span>
+            ) : (
+              <>
+                <textarea
+                  value={input}
+                  onChange={(e) => setInput(e.target.value)}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter" && !e.shiftKey && !e.nativeEvent.isComposing) {
+                      e.preventDefault();
+                      if (input.trim()) act(input.trim());
+                    }
+                  }}
+                  rows={1}
+                  maxLength={1000}
+                  disabled={busy || outOfActions || noCredits}
+                  placeholder={outOfActions ? "행동 횟수를 모두 썼습니다. 추리를 제출하세요" : suspect ? `${suspect.name}에게 질문하기` : "무엇을 조사할까요?"}
+                  className="max-h-32 min-h-[42px] min-w-0 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+                />
+                <button type="submit" disabled={busy || outOfActions || noCredits || !input.trim()} className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                  {busy ? "…" : "보내기"}
+                </button>
+              </>
+            )}
+          </form>
+        )}
       </section>
 
       <aside className={`shrink-0 lg:block lg:w-80 lg:overflow-y-auto ${mobileTab === "notebook" ? "" : "hidden"}`}>{notebook}</aside>
 
       {openClue && <ClueModal clue={openClue} onClose={() => setOpenClue(null)} />}
+      {showStory && <StoryModal data={data} onClose={() => setShowStory(false)} />}
       {accusing && <AccuseModal data={data} state={state} onClose={() => setAccusing(false)} onDone={() => router.push(`/play/${state.sessionId}/result`)} />}
       {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-zinc-900">{toast}</div>}
     </div>
@@ -448,7 +505,73 @@ function ModelPicker({ models, value, disabled, onChange }: { models: ModelOptio
 function ActionsBadge({ state }: { state: PublicState }) {
   if (state.actionsLeft === null) return <span className="text-xs text-zinc-400">행동 {state.actionsUsed}회</span>;
   const low = state.actionsLeft <= 10;
-  return <span className={`rounded-full px-2.5 py-1 text-xs font-medium ${low ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>남은 행동 {state.actionsLeft}</span>;
+  return <span title="조사·질문·증거 제시 1번에 1회씩 줄어요. 장소 이동과 힌트는 횟수를 쓰지 않아요. 다 쓰면 추리를 제출해야 해요." className={`rounded-full px-2.5 py-1 text-xs font-medium ${low ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>남은 행동 {state.actionsLeft}</span>;
+}
+
+/**
+ * 프롤로그 사건의 단계별 안내. 목표를 이뤘는지는 화면에 이미 있는 기록(이동·발견한 단서·대화)으로 판단한다.
+ * 이룬 단계는 건너뛰므로 순서를 바꿔 진행해도 맞는 단계가 보인다
+ */
+function Guide({ data, state, messages }: { data: PublicCase; state: PublicState; messages: PublicMessage[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [folded, setFolded] = useState(false);
+
+  const done = data.guide.map(({ goal }) => {
+    if (!goal) return true;
+    const asked = (thread: string, prefix = "") => messages.some((m) => m.thread === thread && m.role === "user" && m.content.startsWith(prefix));
+    switch (goal.type) {
+      case "visit": {
+        const loc = data.locations.find((l) => l.id === goal.target);
+        return state.currentLocationId === goal.target || messages.some((m) => m.thread === "narrator" && m.role === "event" && m.content.startsWith(`📍 ${loc?.name}\n`));
+      }
+      case "find":
+        return state.foundClues.some((c) => c.id === goal.target);
+      case "talk":
+        return asked(goal.target);
+      case "present": {
+        const clue = state.foundClues.find((c) => c.id === goal.clue);
+        return !!clue && asked(goal.target, `[증거 제시: ${clue.name}]`);
+      }
+    }
+  });
+  const firstLeft = done.findIndex((d) => !d);
+  const current = firstLeft === -1 ? data.guide.length - 1 : firstLeft;
+  const step = data.guide[current];
+
+  return (
+    <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
+      <div className="flex items-center justify-between gap-2">
+        <button type="button" onClick={() => setFolded((v) => !v)} className="min-w-0 truncate text-left font-semibold text-emerald-800 dark:text-emerald-200">
+          🧭 가이드 {current + 1}/{data.guide.length} · {step.title}
+        </button>
+        <div className="flex shrink-0 gap-1 text-xs">
+          {!folded && (
+            <button type="button" onClick={() => setExpanded((v) => !v)} className="rounded-md px-2 py-1 text-emerald-700 hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-900/40">
+              {expanded ? "현재 단계만" : "전체 단계"}
+            </button>
+          )}
+          <button type="button" onClick={() => setFolded((v) => !v)} className="rounded-md px-2 py-1 text-emerald-700 hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-900/40">
+            {folded ? "펼치기" : "접기"}
+          </button>
+        </div>
+      </div>
+      {!folded &&
+        (expanded ? (
+          <ol className="mt-2 max-h-64 space-y-2 overflow-y-auto">
+            {data.guide.map((g, i) => (
+              <li key={i} className={i === current ? "" : "opacity-60"}>
+                <div className="font-medium">
+                  {done[i] && i !== current ? "✅" : i === current ? "👉" : "▫️"} {i + 1}. {g.title}
+                </div>
+                {i === current && <p className="mt-0.5 whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{g.body}</p>}
+              </li>
+            ))}
+          </ol>
+        ) : (
+          <p className="mt-1 max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{step.body}</p>
+        ))}
+    </div>
+  );
 }
 
 function Bubble({ m, name }: { m: PublicMessage; name?: string }) {
@@ -631,6 +754,36 @@ function Modal({ title, onClose, children }: { title: string; onClose: () => voi
         {children}
       </div>
     </div>
+  );
+}
+
+/** 사건 개요: 수사 도중에 무슨 사건인지 다시 확인한다 (사건 페이지에 공개된 정보만) */
+function StoryModal({ data, onClose }: { data: PublicCase; onClose: () => void }) {
+  return (
+    <Modal title={`📁 ${data.title}`} onClose={onClose}>
+      {data.tagline && <p className="mb-4 text-sm text-zinc-500">{data.tagline}</p>}
+      <h3 className="mb-1 text-sm font-semibold text-zinc-500">사건 개요</h3>
+      <p className="whitespace-pre-wrap leading-relaxed">{data.briefing}</p>
+      {data.victim && (
+        <>
+          <h3 className="mb-1 mt-5 text-sm font-semibold text-zinc-500">피해자</h3>
+          <p className="leading-relaxed">{data.victim}</p>
+        </>
+      )}
+      <h3 className="mb-2 mt-5 text-sm font-semibold text-zinc-500">용의자</h3>
+      <ul className="space-y-2">
+        {data.suspects.map((s) => (
+          <li key={s.id} className="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/50">
+            <div className="text-sm font-medium">
+              {s.name}
+              {s.age && <span className="ml-1 font-normal text-zinc-400">{s.age}세</span>}
+              <span className="ml-2 text-xs font-normal text-zinc-500">{s.role}</span>
+            </div>
+            {s.profile && <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">{s.profile}</p>}
+          </li>
+        ))}
+      </ul>
+    </Modal>
   );
 }
 

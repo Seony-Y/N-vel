@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
 import { getUserId } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
+import { findPrologue } from "@/lib/game/catalog";
 
 export const metadata: Metadata = { title: "환영합니다 | N-vel" };
 
@@ -38,14 +39,16 @@ async function Welcome({ searchParams }: { searchParams: PageProps<"/welcome">["
     );
   }
 
+  const [balance, prologue] = await Promise.all([getBalance(userId), findPrologue()]);
   return (
     <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 text-center dark:border-zinc-800 dark:bg-zinc-900">
       <p className="text-4xl">🎉</p>
       <h1 className="mt-3 text-xl font-semibold">이메일 인증이 끝났어요</h1>
       <p className="mt-2 text-sm text-zinc-500">가입 선물로 크레딧을 드렸어요.</p>
-      <p className="mt-4 text-3xl font-bold tabular-nums">💎 {(await getBalance(userId)).toLocaleString()}</p>
-      <Link href="/" className="mt-6 inline-block w-full rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
-        첫 사건 수사하러 가기
+      <p className="mt-4 text-3xl font-bold tabular-nums">💎 {balance.toLocaleString()}</p>
+      {/* 첫 사건은 프롤로그로. 가이드를 따라 하는 법을 익힌다 */}
+      <Link href={prologue ? `/cases/${prologue.id}` : "/"} className="mt-6 inline-block w-full rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+        {prologue ? "🧭 프롤로그로 시작하기" : "첫 사건 수사하러 가기"}
       </Link>
     </div>
   );

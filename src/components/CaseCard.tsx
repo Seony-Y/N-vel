@@ -1,5 +1,6 @@
 import Link from "next/link";
 import { CaseActions } from "@/components/CaseActions";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import type { CaseListItem, CaseProgress } from "@/lib/game/catalog";
 import { ENDINGS } from "@/lib/game/endings";
 
@@ -27,17 +28,19 @@ export function ProgressBadge({ p }: { p: CaseProgress | undefined }) {
   return text ? <span className={`rounded px-1.5 py-0.5 ${cls}`}>{text}</span> : null;
 }
 
-export function CaseCard({ c, progress, loggedIn }: { c: CaseListItem; progress?: CaseProgress; loggedIn: boolean }) {
+export function CaseCard({ c, progress, loggedIn, favorite = false }: { c: CaseListItem; progress?: CaseProgress; loggedIn: boolean; favorite?: boolean }) {
   return (
-    <div className="flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white transition hover:border-red-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white transition hover:border-red-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
       <Link href={`/cases/${c.id}`} className="group flex-1">
         <div className="relative h-36 bg-gradient-to-br from-zinc-800 via-zinc-900 to-red-950">
           {c.coverImage && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={c.coverImage} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover opacity-80" />
           )}
-          <div className="absolute left-3 top-3 flex gap-1.5 text-[11px] font-semibold">
+          <div className="absolute left-3 right-14 top-3 flex flex-wrap gap-1.5 text-[11px] font-semibold">
             {c.isOfficial && <span className="rounded bg-red-600 px-1.5 py-0.5 text-white">공식</span>}
+            {c.hasGuide && <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-white">🧭 가이드</span>}
+            {c.isFree && <span className="rounded bg-amber-500 px-1.5 py-0.5 text-white">🎁 무료</span>}
             <span className="rounded bg-black/60 px-1.5 py-0.5 text-white">{RATING_LABEL[c.rating]}</span>
             <ProgressBadge p={progress} />
           </div>
@@ -56,6 +59,10 @@ export function CaseCard({ c, progress, loggedIn }: { c: CaseListItem; progress?
           </div>
         </div>
       </Link>
+      {/* 링크 안에 버튼을 넣을 수 없으므로 카드 위에 겹쳐 둔다 */}
+      <div className="absolute right-3 top-3">
+        <FavoriteButton caseId={c.id} initial={favorite} loggedIn={loggedIn} />
+      </div>
       {/* 진행 상황에 맞는 버튼 (이어서 수사하기 / 결과 보기 + 다시 도전 / 수사 시작) */}
       <div className="px-4 pb-4">
         <CaseActions caseId={c.id} ongoingId={progress?.ongoingId ?? null} lastFinishedId={progress?.lastFinished?.id ?? null} loggedIn={loggedIn} size="sm" />

@@ -1,3 +1,4 @@
+import type { GuideStep } from "@/db/schema";
 import type { PlayMessage, PlaySession } from "@/types/db";
 import type { FullCase } from "./load";
 import { actionsLeft } from "./rules";
@@ -48,6 +49,9 @@ export interface PublicCase {
   locations: { id: string; name: string; description: string }[];
   suspects: { id: string; name: string; age: number | null; role: string; profile: string; portrait: string | null }[];
   quiz: { question: string; options: string[] }[]; // 정답 제외
+  guide: GuideStep[]; // 제작자가 일부러 공개하는 단계별 안내 (목표의 대상은 id)
+  scripted: boolean; // 대본 사건: AI 없이 선택지로만 진행 (무료)
+  choices: { where: string; say: string; requires: string[] }[]; // 대본의 선택지 (반응·주는 단서는 제외)
 }
 
 export function publicCase(full: FullCase): PublicCase {
@@ -69,6 +73,9 @@ export function publicCase(full: FullCase): PublicCase {
     locations: full.locations.map(({ id, name, description }) => ({ id, name, description })),
     suspects: full.suspects.map(({ id, name, age, role, profile, portrait }) => ({ id, name, age, role, profile, portrait })),
     quiz: c.quiz.map(({ question, options }) => ({ question, options })),
+    guide: c.guide,
+    scripted: c.script.length > 0,
+    choices: c.script.flatMap(({ where, say, requires }) => (say ? [{ where, say, requires }] : [])),
   };
 }
 

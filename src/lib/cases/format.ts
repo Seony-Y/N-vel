@@ -23,6 +23,31 @@ export const CaseFile = z
     victim: z.string().max(2000).default(""),
     maxActions: z.number().int().min(5).max(500).nullable().default(null),
     hints: z.array(z.string().max(500)).max(10).default([]),
+    // 플레이 가이드: 화면에 단계별로 보여 주고, 목표를 이루면 다음 단계로 넘어간다 (스포일러이므로 튜토리얼 사건에만)
+    guide: z
+      .array(
+        z.object({
+          title: z.string().min(1).max(60),
+          body: z.string().min(1).max(1000),
+          goal: z.object({ type: z.enum(["visit", "find", "talk", "present"]), target: code, clue: code.optional() }).optional(),
+        }),
+      )
+      .max(20)
+      .default([]),
+    // 대본: 있으면 AI 대신 정해진 선택지와 반응으로 진행한다 (크레딧 무료). 자유 입력은 받지 않는다
+    script: z
+      .array(
+        z.object({
+          where: code, // 장소 코드(조사) 또는 용의자 코드(심문)
+          say: z.string().min(1).max(200).optional(), // 플레이어가 고르는 선택지
+          present: code.optional(), // 또는 이 단서를 제시했을 때의 반응
+          reply: z.string().min(1).max(2000),
+          reveals: z.array(code).max(5).default([]),
+          requires: z.array(code).max(5).default([]),
+        }),
+      )
+      .max(200)
+      .default([]),
 
     culprit: code,
     truth: z.string().min(1).max(8000),
@@ -102,6 +127,20 @@ export const CaseFile = z
         if (!C.has(b.clue)) issue(`용의자 ${s.code}: 없는 단서 ${b.clue}`);
         if (b.reveals && !C.has(b.reveals)) issue(`용의자 ${s.code}: 없는 단서 ${b.reveals}`);
       }
+    }
+    for (const [i, g] of c.guide.entries()) {
+      if (!g.goal) continue;
+      const { type, target, clue } = g.goal;
+      const want = type === "visit" ? L : type === "find" ? C : S;
+      if (!want.has(target)) issue(`가이드 ${i + 1}단계: 없는 대상 ${target}`);
+      if (type === "present" && !(clue && C.has(clue))) issue(`가이드 ${i + 1}단계: 제시할 단서를 지정하세요`);
+    }
+    for (const [i, s] of c.script.entries()) {
+      const at = `대본 ${i + 1}번`;
+      if (!L.has(s.where) && !S.has(s.where)) issue(`${at}: 없는 장소·용의자 ${s.where}`);
+      if (!s.say === !s.present) issue(`${at}: say 와 present 중 하나만 지정하세요`);
+      if (s.present && !S.has(s.where)) issue(`${at}: 증거 제시는 용의자에게만 할 수 있습니다`);
+      for (const x of [s.present, ...s.reveals, ...s.requires]) if (x && !C.has(x)) issue(`${at}: 없는 단서 ${x}`);
     }
     if (!c.clues.some((x) => x.isKey)) issue("결정적 증거(isKey)가 하나 이상 있어야 합니다");
   });

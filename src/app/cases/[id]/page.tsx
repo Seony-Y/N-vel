@@ -3,12 +3,13 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Difficulty, RATING_LABEL } from "@/components/CaseCard";
 import { CaseActions } from "@/components/CaseActions";
+import { FavoriteButton } from "@/components/FavoriteButton";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import { SiteHeader } from "@/components/SiteHeader";
 import { CHAT_MODELS, DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { getUserId, isAdmin } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
-import { mySessionsFor } from "@/lib/game/catalog";
+import { myFavoriteIds, mySessionsFor } from "@/lib/game/catalog";
 import { endingText } from "@/lib/game/endings";
 import { canPlay, loadCase } from "@/lib/game/load";
 import { publicCase } from "@/lib/game/public";
@@ -30,7 +31,7 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
   if (!full || !canPlay(full.case, userId)) notFound();
 
   const c = publicCase(full);
-  const [sessions, balance] = await Promise.all([userId ? mySessionsFor(userId, id) : [], getBalance(userId)]);
+  const [sessions, balance, favorites] = await Promise.all([userId ? mySessionsFor(userId, id) : [], getBalance(userId), myFavoriteIds(userId)]);
   const ongoing = sessions.find((s) => s.status === "playing");
   const finished = sessions.filter((s) => s.status === "finished");
   const isOwner = !!userId && full.case.ownerId === userId;
@@ -73,11 +74,20 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
               난이도 <Difficulty value={c.difficulty} />
             </span>
             <span>약 {c.estimatedMinutes}분</span>
-            {c.maxActions && <span>행동 {c.maxActions}회</span>}
+            {c.maxActions && <span>⏱ 행동 {c.maxActions}회 안에 해결</span>}
             {c.warningTags.map((t) => (
               <span key={t}>#{t}</span>
             ))}
+            <span className="ml-auto">
+              <FavoriteButton caseId={id} initial={favorites.has(id)} loggedIn={!!userId} variant="text" />
+            </span>
           </div>
+          {c.maxActions && (
+            <p className="-mt-3 rounded-lg bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-500 dark:bg-zinc-800/50">
+              ⏱ <b className="font-medium">행동</b>은 장소를 조사하거나, 용의자에게 질문하거나, 증거를 제시할 때마다 1회씩 줄어요 (비밀번호를 틀려도 1회). 장소 이동, 수첩 보기, 힌트는 횟수를 쓰지 않아요.
+              {c.maxActions}회를 다 쓰면 그때까지 모은 단서로 추리를 제출해야 해요.
+            </p>
+          )}
 
           <section>
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">사건 개요</h2>
@@ -108,14 +118,15 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
           </section>
 
           {finished.some((s) => s.ending === "correct") && <p className="text-sm font-medium text-emerald-600">✅ 해결한 사건이에요. 다시 도전해서 더 높은 점수를 노려 보세요.</p>}
+          {/* 대본 사건(프롤로그)은 AI 를 쓰지 않으므로 모델·크레딧 안내 대신 무료 표시 */}
+          {full.case.script.length > 0 && <p className="text-sm font-medium text-emerald-600">🎁 무료 사건이에요. 정해진 선택지로 진행하고 크레딧을 쓰지 않아요.</p>}
           <CaseActions
             caseId={id}
             ongoingId={ongoing?.id ?? null}
             lastFinishedId={finished[0]?.id ?? null}
             loggedIn={!!userId}
-            models={CHAT_MODELS.map(({ id, label, credits }) => ({ id, label, credits }))}
+            {...(!full.case.script.length && { models: CHAT_MODELS.map(({ id, label, credits }) => ({ id, label, credits })), balance })}
             defaultModel={DEFAULT_CHAT_MODEL}
-            balance={balance}
           />
 
           {finished.length > 0 && (

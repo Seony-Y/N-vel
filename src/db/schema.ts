@@ -7,6 +7,7 @@ import {
   jsonb,
   pgEnum,
   pgTable,
+  primaryKey,
   text,
   timestamp,
   unique,
@@ -87,6 +88,26 @@ export interface QuizQuestion {
   answer: number; // 정답 options 인덱스
 }
 
+/** 플레이 가이드 한 단계. 목표의 대상은 DB 에서는 id, 사건 파일에서는 코드(L1, S1, C1) */
+export interface GuideStep {
+  title: string;
+  body: string;
+  goal?: { type: "visit" | "find" | "talk" | "present"; target: string; clue?: string }; // present: target 에게 clue 를 제시. 없으면 읽기만 하는 단계
+}
+
+/**
+ * 대본 사건의 정해진 선택지 하나. 대본이 있는 사건은 AI 를 부르지 않고 이대로 응답한다 (크레딧 무료).
+ * where: 장소(그 장소에서 조사) 또는 용의자(심문). say 를 고르거나, 용의자에게 present 단서를 제시하면 reply 를 보여 주고 reveals 단서를 준다
+ */
+export interface ScriptLine {
+  where: string;
+  say?: string;
+  present?: string;
+  reply: string;
+  reveals: string[];
+  requires: string[]; // 이 단서를 모두 찾아야 선택지가 보인다
+}
+
 export const cases = pgTable(
   "cases",
   {
@@ -108,6 +129,8 @@ export const cases = pgTable(
     victim: text("victim").notNull().default(""), // 피해자 공개 정보
     maxActions: integer("max_actions"), // 행동 횟수 제한. null 이면 무제한
     hints: text("hints").array().notNull().default([]), // 순서대로 공개, 쓸 때마다 감점
+    guide: jsonb("guide").$type<GuideStep[]>().notNull().default([]), // 처음 하는 사람을 위한 단계별 안내 (프롤로그 사건)
+    script: jsonb("script").$type<ScriptLine[]>().notNull().default([]), // 있으면 AI 대신 정해진 대본으로 진행 (무료)
     // ── 진상 (비공개) ──
     culpritId: uuid("culprit_id"), // suspects.id. 순환 참조라 FK 는 걸지 않음
     truth: text("truth").notNull().default(""), // 실제로 일어난 일 (타임라인)
@@ -240,6 +263,17 @@ export const playMessages = pgTable(
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
   (t) => [index("play_messages_thread_idx").on(t.sessionId, t.thread, t.createdAt)],
+);
+
+// 즐겨찾기한 사건. 내 수사에서 먼저 보여 준다
+export const caseFavorites = pgTable(
+  "case_favorites",
+  {
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.caseId] })],
 );
 
 // ───────────────────────── 사용량 기록 ─────────────────────────
