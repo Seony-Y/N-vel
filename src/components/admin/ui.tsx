@@ -1,4 +1,5 @@
 import Link from "next/link";
+import { useId } from "react";
 
 /** 관리자 화면 공통 부품. 수치는 본문 잉크 색으로, 상태는 아이콘 + 글자로 표시한다 */
 
@@ -24,9 +25,16 @@ export function Panel({ title, action, children }: { title: string; action?: Rea
   );
 }
 
+/**
+ * 넓은 화면에서는 표, 좁은 화면(1280px 미만)에서는 줄마다 카드로 보여 준다 (globals.css 의 .rtable).
+ * 카드에서 칸 이름은 열 순서대로 붙인다
+ */
 export function Table({ head, children, empty }: { head: string[]; children: React.ReactNode; empty?: boolean }) {
+  const cls = `rt-${useId().replace(/[^a-zA-Z0-9]/g, "")}`;
+  const labels = head.map((h, i) => `.${cls} td:nth-child(${i + 1})::before{content:${JSON.stringify(h)}}`).join("");
   return (
-    <table className="w-full text-left text-sm">
+    <table className={`rtable ${cls} w-full text-left text-sm`}>
+      <style>{labels}</style>
       <thead className="bg-zinc-50 text-xs text-zinc-500 dark:bg-zinc-950">
         <tr>
           {head.map((h) => (
