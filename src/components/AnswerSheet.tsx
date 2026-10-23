@@ -44,28 +44,29 @@ export function AnswerSheet({ full, found }: { full: FullCase; found?: Set<strin
             <thead className="text-xs text-zinc-500">
               <tr className="border-b border-zinc-200 dark:border-zinc-800">
                 {found && <th className="py-2 pr-2">발견</th>}
-                <th className="py-2 pr-2">코드</th>
+                <th className="hidden py-2 pr-2 sm:table-cell">코드</th>
                 <th className="py-2 pr-2">이름</th>
                 <th className="py-2 pr-2">위치</th>
                 <th className="py-2 pr-2">얻는 조건</th>
-                <th className="py-2">비고</th>
+                <th className="hidden py-2 sm:table-cell">비고</th>
               </tr>
             </thead>
             <tbody>
               {full.clues.map((x) => (
                 <tr key={x.id} className="border-b border-zinc-100 align-top dark:border-zinc-800/60">
                   {found && <td className="py-2 pr-2">{found.has(x.id) ? "✅" : "⬜"}</td>}
-                  <td className="py-2 pr-2 font-mono text-xs text-zinc-400">{x.code}</td>
+                  <td className="hidden py-2 pr-2 font-mono text-xs text-zinc-400 sm:table-cell">{x.code}</td>
                   <td className="py-2 pr-2 font-medium">
                     {x.isKey && "⭐ "}
                     {x.name}
+                    {x.passcode && <div className="mt-0.5 font-mono text-xs font-normal text-amber-700 sm:hidden dark:text-amber-300">🔒 {x.passcode}</div>}
                   </td>
                   <td className="py-2 pr-2 text-zinc-500">{x.locationId ? locName(x.locationId) : `${susName(x.holderId)}의 증언`}</td>
                   <td className="py-2 pr-2 text-zinc-500">
                     {x.discoverHint}
                     {x.requires.length > 0 && <div className="text-xs">선행: {x.requires.map(clueName).join(", ")}</div>}
                   </td>
-                  <td className="py-2 text-xs">{x.passcode && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-amber-800 dark:bg-amber-950 dark:text-amber-200">🔒 {x.passcode}</span>}</td>
+                  <td className="hidden py-2 text-xs sm:table-cell">{x.passcode && <span className="rounded bg-amber-100 px-1.5 py-0.5 font-mono text-amber-800 dark:bg-amber-950 dark:text-amber-200">🔒 {x.passcode}</span>}</td>
                 </tr>
               ))}
             </tbody>

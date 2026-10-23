@@ -150,7 +150,7 @@ export function CaseEditor({ initial, initialPublic, caseId }: { initial: Draft 
         </div>
       </div>
 
-      <nav className="sticky top-[57px] z-10 -mx-4 mt-4 flex gap-1 overflow-x-auto border-b border-zinc-200 bg-[var(--background)] px-4 sm:-mx-6 sm:px-6 dark:border-zinc-800">
+      <nav className="sticky top-[57px] z-10 -mx-4 mt-4 flex flex-wrap gap-x-1 border-b border-zinc-200 bg-[var(--background)] px-4 sm:-mx-6 sm:px-6 dark:border-zinc-800">
         {TABS.map((t) => (
           <button
             key={t.id}

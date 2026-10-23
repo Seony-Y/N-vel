@@ -1,4 +1,5 @@
 import type Anthropic from "@anthropic-ai/sdk";
+import { getChatModel } from "@/lib/ai/models";
 import type { Clue, PlayMessage, PlaySession, Suspect } from "@/types/db";
 import type { FullCase } from "./load";
 
@@ -27,7 +28,7 @@ const TAG_OPENERS = ["<clue>", "<go>", "<talk>", "<next>"];
 const NARRATOR_RULES = `당신은 추리 게임의 나레이터입니다. 플레이어(탐정)가 사건 현장을 조사하는 장면을 묘사합니다.
 
 ## 규칙
-- 플레이어의 행동 결과를 2~5문장으로 생생하지만 간결하게 묘사하세요. 2인칭("당신은")으로 씁니다.
+- 플레이어의 행동 결과를 생생하게 묘사하세요. 길이와 묘사의 깊이는 매 턴 주어지는 "응답 길이" 지침을 따릅니다. 2인칭("당신은")으로 씁니다.
 - 아래 "장소 정보"와 "단서 목록"에 있는 것만 존재합니다. 새로운 증거, 인물, 비밀 통로 등을 지어내지 마세요.
 - 플레이어의 행동이 어떤 단서의 "찾는 법"에 해당하면, 그 단서의 내용(무엇이 보이는지, 적힌 글귀나 눈에 띄는 점)을 구체적으로 묘사한 뒤 응답 맨 끝에 <clue>코드</clue> 를 붙이세요. 여러 개면 각각 붙입니다.
 - "이번 턴에 찾을 수 있는 단서"에 없는 단서는 묘사하지도, 태그를 붙이지도 마세요. 막연한 행동에는 주변 분위기만 묘사하고 더 구체적으로 살펴볼 곳을 은근히 암시하세요.
@@ -41,7 +42,7 @@ const NARRATOR_RULES = `당신은 추리 게임의 나레이터입니다. 플레
 const SUSPECT_RULES = `당신은 추리 게임 속 용의자를 연기합니다. 탐정(플레이어)이 당신을 심문하고 있습니다.
 
 ## 규칙
-- 아래 "당신의 정보"에 적힌 인물로서, 성격과 말투를 지키며 대답하세요. 1~4문장으로 짧게, 대화하듯 답하세요. 행동 묘사는 *별표* 로 감싸세요.
+- 아래 "당신의 정보"에 적힌 인물로서, 성격과 말투를 지키며 대화하듯 대답하세요. 길이는 매 턴 주어지는 "응답 길이" 지침을 따릅니다. 행동 묘사는 *별표* 로 감싸세요.
 - 당신이 아는 것은 "당신의 정보"뿐입니다. 거기에 없는 사실은 모른다고 하거나 얼버무리세요. 새로운 증거나 사건을 지어내지 마세요.
 - "숨기는 것"은 스스로 먼저 말하지 마세요. 거짓말 지침이 있으면 따르세요. 단, "이미 인정한 사실"에 있는 내용은 더 이상 부정하지 마세요.
 - 탐정이 증거를 제시하면 그 증거에 반응하세요. "방금 제시된 증거로 무너진 지점"이 있으면 그 지침대로 인정하는 연기를 하세요.
@@ -86,6 +87,7 @@ export function narratorPrompt(full: FullCase, session: PlaySession, history: Pl
   const locCode = new Map(full.locations.map((l) => [l.id, l.code]));
   const foundCodes = full.clues.filter((c) => session.foundClueIds.includes(c.id)).map((c) => c.code);
   const volatile = [
+    `응답 길이: ${getChatModel(session.model).length.narrator} (단, 용의자를 마주하는 장면은 한 문장)`,
     `현재 장소: ${loc ? `${loc.code} ${loc.name}` : "정하지 않음 (플레이어가 말하는 곳으로 이동시키세요)"}`,
     `이미 찾은 단서: ${foundCodes.join(", ") || "없음"} (이미 찾은 단서는 다시 태그를 붙이지 마세요)`,
     `이번 턴에 찾을 수 있는 단서: ${discoverable.map((c) => `${c.code}(${locCode.get(c.locationId ?? "") ?? "?"})`).join(", ") || "없음"} (괄호는 단서가 있는 장소. 현재 장소가 아닌 단서는 플레이어가 그곳이나 그 물건을 지목했을 때만)`,
@@ -132,6 +134,7 @@ export function suspectPrompt(
   const heldCodes = new Set(held.map((c) => c.code));
   const toldCodes = full.clues.filter((c) => heldCodes.has(c.code) && session.foundClueIds.includes(c.id)).map((c) => c.code);
   const volatile = [
+    `응답 길이: ${getChatModel(session.model).length.suspect}`,
     `이미 인정한 사실:\n${admissions.join("\n") || "- 없음"}`,
     opts.newlyBroken ? `방금 제시된 증거로 무너진 지점: ${opts.newlyBroken}` : "",
     `이미 말한 증언: ${toldCodes.join(", ") || "없음"}`,

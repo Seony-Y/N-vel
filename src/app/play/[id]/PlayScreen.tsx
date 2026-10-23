@@ -53,7 +53,7 @@ export function PlayScreen({
   const threadMessages = useMemo(() => messages.filter((m) => m.thread === thread), [messages, thread]);
   const outOfActions = state.actionsLeft === 0;
   const badges = (
-    <div className="flex items-center gap-1.5">
+    <div className="flex flex-wrap items-center gap-1.5">
       <ModelPicker models={models} value={model.id} disabled={busy} onChange={changeModel} />
       <span
         className={`rounded-full px-2.5 py-1 text-xs font-medium ${noCredits ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200"}`}
@@ -305,7 +305,7 @@ export function PlayScreen({
       <aside className={`shrink-0 lg:block lg:w-52 lg:overflow-y-auto ${mobileTab === "play" ? "mb-3" : "hidden"}`}>{sidebar}</aside>
 
       {/* 대화 */}
-      <section className={`flex min-h-[60vh] flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white lg:min-h-0 dark:border-zinc-800 dark:bg-zinc-900 ${mobileTab === "play" ? "" : "hidden lg:flex"}`}>
+      <section className={`flex min-h-[60vh] min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white lg:min-h-0 dark:border-zinc-800 dark:bg-zinc-900 ${mobileTab === "play" ? "" : "hidden lg:flex"}`}>
         <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
           {header}
           <div className="hidden lg:block">{badges}</div>
@@ -342,7 +342,7 @@ export function PlayScreen({
 
         {/* 추천 행동: 누르면 바로 보낸다. 직접 입력도 그대로 가능 */}
         {!outOfActions && !noCredits && (
-          <div className="flex gap-1.5 overflow-x-auto border-t border-zinc-200 px-3 pt-2.5 dark:border-zinc-800">
+          <div className="flex flex-col gap-1 border-t border-zinc-200 px-3 pt-2.5 dark:border-zinc-800">
             {suggestions.map((s) => (
               <button
                 key={s}
@@ -350,7 +350,7 @@ export function PlayScreen({
                 disabled={busy}
                 onClick={() => act(s)}
                 title={`보내기 (💎 ${creditsPerAction})`}
-                className="shrink-0 rounded-full border border-zinc-300 px-3 py-1 text-xs text-zinc-700 hover:border-red-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-800 dark:hover:bg-red-950/30 dark:hover:text-red-300"
+                className="w-full rounded-lg border border-zinc-300 px-3 py-1.5 text-left text-xs text-zinc-700 hover:border-red-400 hover:bg-red-50 hover:text-red-700 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-300 dark:hover:border-red-800 dark:hover:bg-red-950/30 dark:hover:text-red-300"
               >
                 {s}
               </button>
@@ -376,7 +376,7 @@ export function PlayScreen({
                 증거 제시
               </button>
               {presenting && (
-                <div className="absolute bottom-full left-0 z-10 mb-2 max-h-72 w-72 overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
+                <div className="absolute bottom-full left-0 z-10 mb-2 max-h-72 w-72 max-w-[calc(100vw-2.5rem)] overflow-y-auto rounded-xl border border-zinc-200 bg-white p-1 shadow-lg dark:border-zinc-700 dark:bg-zinc-900">
                   {state.foundClues.map((c) => (
                     <button
                       key={c.id}
@@ -408,7 +408,7 @@ export function PlayScreen({
             maxLength={1000}
             disabled={busy || outOfActions || noCredits}
             placeholder={outOfActions ? "행동 횟수를 모두 썼습니다. 추리를 제출하세요" : suspect ? `${suspect.name}에게 질문하기` : "무엇을 조사할까요?"}
-            className="max-h-32 min-h-[42px] flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
+            className="max-h-32 min-h-[42px] min-w-0 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
           />
           <button type="submit" disabled={busy || outOfActions || noCredits || !input.trim()} className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
             {busy ? "…" : "보내기"}
