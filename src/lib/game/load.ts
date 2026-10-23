@@ -17,6 +17,33 @@ export async function loadCase(caseId: string) {
 
 export type FullCase = NonNullable<Awaited<ReturnType<typeof loadCase>>>;
 
+/*
+ * 플레이 중에는 행동마다 사건 전체(쿼리 4번)를 다시 읽지 않도록 서버 메모리에 잠깐 둔다.
+ * 사건을 저장하면 cases.updated_at 이 바뀌므로, 그 값이 같을 때만 재사용한다 (수정 즉시 반영)
+ */
+const caseCache = new Map<string, { updatedAt: number; full: FullCase }>();
+const CACHE_MAX = 50;
+
+export async function loadCaseCached(caseId: string, updatedAt: Date) {
+  const hit = caseCache.get(caseId);
+  if (hit && hit.updatedAt === updatedAt.getTime()) return hit.full;
+  const full = await loadCase(caseId);
+  if (!full) return null;
+  if (caseCache.size >= CACHE_MAX) caseCache.delete(caseCache.keys().next().value!);
+  caseCache.set(caseId, { updatedAt: full.case.updatedAt.getTime(), full });
+  return full;
+}
+
+/** 내 플레이 기록 + 사건의 공개 여부·수정 시각 (쿼리 1번) */
+export async function loadSessionWithCase(sessionId: string, userId: string) {
+  const [row] = await db
+    .select({ session: playSessions, isPublic: cases.isPublic, ownerId: cases.ownerId, updatedAt: cases.updatedAt })
+    .from(playSessions)
+    .innerJoin(cases, eq(cases.id, playSessions.caseId))
+    .where(and(eq(playSessions.id, sessionId), eq(playSessions.userId, userId)));
+  return row ?? null;
+}
+
 /** 내 플레이 기록만 불러온다 */
 export async function loadSession(sessionId: string, userId: string) {
   const [s] = await db

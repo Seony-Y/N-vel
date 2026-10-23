@@ -13,10 +13,13 @@ function prerequisitesMet(clue: Clue, found: Set<string>) {
   return clue.requires.every((id) => found.has(id));
 }
 
-/** 이 장소에서 지금 찾을 수 있는 단서 (잠긴 단서 제외) */
-export function discoverableAt(full: FullCase, session: PlaySession, locationId: string) {
+/**
+ * 지금 조사로 찾을 수 있는 장소 단서 (잠긴 단서 제외).
+ * 현재 장소에 묶지 않는다. 플레이어가 다른 장소의 물건을 지목하면 나레이터가 그곳으로 옮겨 준다
+ */
+export function discoverable(full: FullCase, session: PlaySession) {
   const found = new Set(session.foundClueIds);
-  return full.clues.filter((c) => c.locationId === locationId && !found.has(c.id) && !c.passcode && prerequisitesMet(c, found));
+  return full.clues.filter((c) => c.locationId && !found.has(c.id) && !c.passcode && prerequisitesMet(c, found));
 }
 
 /**

@@ -7,6 +7,7 @@ import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/g
 
 const TRAILER = "\u001e";
 const MAX_EVIDENCE = 3;
+const FOUND_PREFIX = "🔍 단서 발견: ";
 
 type Target = "narrator" | string; // 용의자 id
 
@@ -57,9 +58,13 @@ export function PlayScreen({
   );
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const shownThread = useRef(thread);
   useEffect(() => {
-    bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [threadMessages.length, streaming, target]);
+    // 대화 상대를 바꿨을 때는 기다리지 않고 바로 맨 아래로, 새 메시지가 올 때만 부드럽게
+    const switched = shownThread.current !== thread;
+    shownThread.current = thread;
+    bottomRef.current?.scrollIntoView({ behavior: switched ? "instant" : "smooth", block: "end" });
+  }, [threadMessages.length, streaming, thread]);
 
   function flash(text: string) {
     setToast(text);
@@ -117,12 +122,15 @@ export function PlayScreen({
       }
 
       const [text, trailer] = raw.split(TRAILER);
-      const result = trailer ? (JSON.parse(trailer) as { state: PublicState; found: string[]; credits: number }) : null;
-      pushLocal({ thread, role: "assistant", content: text.trim() }, ...(result?.found ?? []).map((name) => ({ thread, role: "event" as const, content: `🔍 단서 발견: ${name}` })));
+      const result = trailer ? (JSON.parse(trailer) as { state: PublicState; events: string[]; talkTo: string | null; credits: number }) : null;
+      pushLocal({ thread, role: "assistant", content: text.trim() }, ...(result?.events ?? []).map((content) => ({ thread, role: "event" as const, content })));
       if (result) {
         setState(result.state);
         setCredits(result.credits);
-        if (result.found.length) flash(`🔍 단서 발견: ${result.found.join(", ")}`);
+        const found = result.events.filter((e) => e.startsWith(FOUND_PREFIX)).length;
+        if (found) flash(`🔍 단서 ${found}개 발견 · 수첩에 적었어요`);
+        // 나레이터가 용의자를 마주하는 장면으로 넘겼으면 바로 심문 화면으로
+        if (result.talkTo) setTarget(result.talkTo);
       }
     } catch (e) {
       setError((e as Error).message);
@@ -135,12 +143,16 @@ export function PlayScreen({
   async function move(locationId: string) {
     setTarget("narrator");
     setMobileTab("play");
-    if (locationId === state.currentLocationId || busy) return;
+    const loc = data.locations.find((l) => l.id === locationId);
+    if (!loc || locationId === state.currentLocationId || busy) return;
+    // 화면은 바로 옮기고, 저장은 뒤에서 한다 (장소 정보는 이미 화면에 있음)
+    const before = state.currentLocationId;
+    setState((s) => ({ ...s, currentLocationId: locationId }));
+    pushLocal({ thread: "narrator", role: "event", content: `📍 ${loc.name}\n${loc.description}` });
     try {
-      const r = await post("move", { locationId });
-      setState(r.state);
-      pushLocal({ thread: "narrator", role: "event", content: r.event });
+      await post("move", { locationId });
     } catch (e) {
+      setState((s) => ({ ...s, currentLocationId: before }));
       setError((e as Error).message);
     }
   }
@@ -271,9 +283,14 @@ export function PlayScreen({
           {threadMessages.length === 0 && (
             <p className="py-8 text-center text-sm text-zinc-400">{suspect ? `${suspect.name}에게 질문해 보세요. 수첩의 단서를 증거로 제시할 수도 있어요.` : "무엇을 조사할지 입력해 보세요. 예) 책상 서랍을 열어본다"}</p>
           )}
-          {threadMessages.map((m) => (
-            <Bubble key={m.id} m={m} name={suspect?.name} />
-          ))}
+          {threadMessages.map((m) => {
+            const found = m.role === "event" && m.content.startsWith(FOUND_PREFIX) ? state.foundClues.find((c) => c.name === m.content.slice(FOUND_PREFIX.length).trim()) : null;
+            return found ? (
+              <FoundClue key={m.id} clue={found} suspects={data.suspects} inInterrogation={!!suspect} onOpen={() => setOpenClue(found)} />
+            ) : (
+              <Bubble key={m.id} m={m} name={suspect?.name} />
+            );
+          })}
           {streaming !== null && <Bubble m={{ id: "s", thread, role: "assistant", content: streaming || "…" }} name={suspect?.name} />}
           <div ref={bottomRef} />
         </div>
@@ -375,6 +392,30 @@ function Bubble({ m, name }: { m: PublicMessage; name?: string }) {
         {!mine && name && <div className="mb-0.5 text-xs font-semibold text-zinc-500">{name}</div>}
         {m.content}
       </div>
+    </div>
+  );
+}
+
+/** 대화 중에 찾은 단서: 무엇을 찾았는지, 누구와 관련 있어 보이는지, 이걸로 무엇을 할 수 있는지 */
+function FoundClue({ clue, suspects, inInterrogation, onOpen }: { clue: PublicClue; suspects: PublicCase["suspects"]; inInterrogation: boolean; onOpen: () => void }) {
+  // 단서 내용에 이름이 나오는 사람만 보여 준다 (내용에 이미 있는 정보라 정답을 흘리지 않음)
+  const related = suspects.filter((s) => clue.description.includes(s.name));
+  return (
+    <div className="mx-auto w-full max-w-md rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <div className="text-xs font-medium text-amber-700 dark:text-amber-300">🔍 단서 발견 · {clue.source}</div>
+          <div className="mt-0.5 font-semibold text-zinc-900 dark:text-zinc-100">{clue.name}</div>
+        </div>
+        <button type="button" onClick={onOpen} className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/40">
+          자세히
+        </button>
+      </div>
+      <p className="mt-1.5 whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{clue.description}</p>
+      <p className="mt-2 text-xs text-zinc-500">
+        {related.length ? `관련 인물: ${related.map((s) => s.name).join(", ")} · ` : ""}
+        {inInterrogation ? "수첩에 적었어요. 이 내용을 더 캐묻거나 다른 용의자에게 증거로 제시해 보세요." : "수첩에 적었어요. 용의자를 심문할 때 '증거 제시'로 들이밀 수 있어요."}
+      </p>
     </div>
   );
 }
