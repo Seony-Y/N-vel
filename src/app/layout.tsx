@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { SiteFooter } from "@/components/SiteFooter";
 import "./globals.css";
 
@@ -12,7 +13,10 @@ export default function RootLayout({ children }: LayoutProps<"/">) {
     <html lang="ko" className="h-full antialiased">
       <body className="flex min-h-full flex-col">
         {children}
-        <SiteFooter />
+        {/* 푸터는 지금 주소를 읽으므로(수사 화면에서 숨기기) 사전 렌더링을 막지 않게 따로 그린다 */}
+        <Suspense>
+          <SiteFooter />
+        </Suspense>
       </body>
     </html>
   );

@@ -24,7 +24,7 @@ export function SiteFooter() {
           </a>
         </nav>
         <p>
-          © {new Date().getFullYear()} {SITE.name} · 운영자 {SITE.operator} · v{SITE.version}
+          © {SITE.copyrightYear} {SITE.name} · 운영자 {SITE.operator} · v{SITE.version}
         </p>
       </div>
     </footer>

@@ -83,9 +83,9 @@ async function MyPlays({ searchParams }: { searchParams: PageProps<"/my/plays">[
 
 function Empty({ text }: { text: string }) {
   return (
-    <div className="mt-10 text-center text-zinc-500">
-      <p>{text}</p>
-      <Link href="/" className="mt-3 inline-block font-medium text-red-600 hover:underline">
+    <div className="mt-10 flex flex-col items-center rounded-2xl border border-dashed border-zinc-300 px-6 py-12 text-center dark:border-zinc-700">
+      <p className="text-sm text-zinc-500">{text}</p>
+      <Link href="/" className="mt-5 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
         사건 목록 보기
       </Link>
     </div>

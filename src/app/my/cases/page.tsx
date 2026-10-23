@@ -33,10 +33,14 @@ async function MyCases() {
   const list = await listMyCases(userId);
   if (!list.length) {
     return (
-      <div className="mt-16 text-center text-zinc-500">
-        <p>아직 만든 사건이 없어요.</p>
-        <Link href="/cases/new" className="mt-3 inline-block font-medium text-red-600 hover:underline">
-          첫 사건 만들기 (예시를 불러와서 시작할 수 있어요)
+      <div className="mt-10 flex flex-col items-center rounded-2xl border border-dashed border-zinc-300 px-6 py-12 text-center dark:border-zinc-700">
+        <p className="text-4xl" aria-hidden>
+          🗂
+        </p>
+        <p className="mt-3 font-medium">아직 만든 사건이 없어요</p>
+        <p className="mt-1 text-sm text-zinc-500">예시 사건을 불러와서 고치는 것부터 시작할 수 있어요.</p>
+        <Link href="/cases/new" className="mt-5 rounded-lg bg-red-600 px-5 py-2.5 text-sm font-semibold text-white hover:bg-red-700">
+          첫 사건 만들기
         </Link>
       </div>
     );

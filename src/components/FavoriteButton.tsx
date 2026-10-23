@@ -11,6 +11,7 @@ export function FavoriteButton({ caseId, initial, loggedIn, variant = "icon" }: 
   const [needLogin, setNeedLogin] = useState(false);
 
   async function toggle() {
+    if (pending) return; // 저장 중 두 번 누르기 방지 (disabled 로 두면 커서가 '금지' 모양으로 깜빡인다)
     if (!loggedIn) {
       setNeedLogin(true);
       setTimeout(() => setNeedLogin(false), 2000);
@@ -35,7 +36,7 @@ export function FavoriteButton({ caseId, initial, loggedIn, variant = "icon" }: 
   if (variant === "text") {
     return (
       <span className="relative inline-block">
-        <button type="button" onClick={toggle} disabled={pending} aria-pressed={on} title={title} className={`rounded-md px-1.5 py-0.5 font-medium hover:bg-amber-50 dark:hover:bg-amber-950/30 ${on ? "text-amber-500" : "text-zinc-500 hover:text-amber-600"}`}>
+        <button type="button" onClick={toggle} aria-busy={pending} aria-pressed={on} title={title} className={`rounded-md px-1.5 py-0.5 font-medium hover:bg-amber-50 dark:hover:bg-amber-950/30 ${on ? "text-amber-500" : "text-zinc-500 hover:text-amber-600"}`}>
           {on ? "★" : "☆"} {label}
         </button>
         {tip}
@@ -47,7 +48,7 @@ export function FavoriteButton({ caseId, initial, loggedIn, variant = "icon" }: 
       <button
         type="button"
         onClick={toggle}
-        disabled={pending}
+        aria-busy={pending}
         aria-pressed={on}
         aria-label={label}
         title={title}
