@@ -37,7 +37,7 @@ export async function loadCaseCached(caseId: string, updatedAt: Date) {
 /** 내 플레이 기록 + 사건의 공개 여부·수정 시각 (쿼리 1번) */
 export async function loadSessionWithCase(sessionId: string, userId: string) {
   const [row] = await db
-    .select({ session: playSessions, isPublic: cases.isPublic, ownerId: cases.ownerId, updatedAt: cases.updatedAt })
+    .select({ session: playSessions, isPublic: cases.isPublic, hiddenAt: cases.hiddenAt, ownerId: cases.ownerId, updatedAt: cases.updatedAt })
     .from(playSessions)
     .innerJoin(cases, eq(cases.id, playSessions.caseId))
     .where(and(eq(playSessions.id, sessionId), eq(playSessions.userId, userId)));
@@ -65,7 +65,7 @@ export async function loadAllMessages(sessionId: string) {
   return db.select().from(playMessages).where(eq(playMessages.sessionId, sessionId)).orderBy(asc(playMessages.createdAt));
 }
 
-/** 볼 수 있는 사건인지: 공개됐거나 내가 만든 것 */
-export function canPlay(c: { isPublic: boolean; ownerId: string | null }, userId: string | null) {
-  return c.isPublic || (!!userId && c.ownerId === userId);
+/** 볼 수 있는 사건인지: 공개됐고 관리자가 숨기지 않았거나, 내가 만든 것 */
+export function canPlay(c: { isPublic: boolean; hiddenAt: Date | null; ownerId: string | null }, userId: string | null) {
+  return (c.isPublic && !c.hiddenAt) || (!!userId && c.ownerId === userId);
 }

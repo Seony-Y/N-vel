@@ -143,6 +143,17 @@ export async function perCase(days: number) {
   return rows.map((r) => ({ ...r, started: int(r.started), finished: int(r.finished), solved: int(r.solved), gaveUp: int(r.gaveUp), credits: int(r.credits), micros: int(r.micros) }));
 }
 
+/** 공개 사건 관리: 공개 중이거나 관리자가 숨긴 사건 (숨긴 것 먼저, 그다음 최근 수정 순) */
+export async function moderationCases() {
+  return db
+    .select({ id: cases.id, title: cases.title, isOfficial: cases.isOfficial, isPublic: cases.isPublic, hiddenAt: cases.hiddenAt, hiddenReason: cases.hiddenReason, updatedAt: cases.updatedAt, owner: user.name, ownerId: cases.ownerId })
+    .from(cases)
+    .leftJoin(user, eq(user.id, cases.ownerId))
+    .where(sql`${cases.isPublic} or ${cases.hiddenAt} is not null`)
+    .orderBy(sql`${cases.hiddenAt} is null`, desc(cases.updatedAt))
+    .limit(100);
+}
+
 export async function recentEvents(limit = 30, userId?: string) {
   return db
     .select({ id: eventLogs.id, type: eventLogs.type, where: eventLogs.where, message: eventLogs.message, sessionId: eventLogs.sessionId, userId: eventLogs.userId, email: user.email, caseTitle: cases.title, createdAt: eventLogs.createdAt })

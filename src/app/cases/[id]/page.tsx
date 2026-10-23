@@ -3,6 +3,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { Difficulty, RATING_LABEL } from "@/components/CaseCard";
 import { CaseActions } from "@/components/CaseActions";
+import { HideCase } from "@/components/admin/HideCase";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -30,7 +31,8 @@ export default function CasePage({ params }: PageProps<"/cases/[id]">) {
 async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params"] }) {
   const { id } = await params;
   const [userId, full] = await Promise.all([getUserId(), loadCase(id).catch(() => null)]);
-  if (!full || !canPlay(full.case, userId)) notFound();
+  // 관리자는 숨긴 사건도 열어 볼 수 있다 (다시 보이게 하려고)
+  if (!full || (!canPlay(full.case, userId) && !(await isAdmin(userId)))) notFound();
 
   const c = publicCase(full);
   const [sessions, balance, favorites] = await Promise.all([userId ? mySessionsFor(userId, id) : [], getBalance(userId), myFavoriteIds(userId)]);
@@ -41,10 +43,18 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
 
   return (
     <main className="mx-auto w-full max-w-3xl px-4 py-6 sm:px-6">
+      {full.case.hiddenAt && (isOwner || admin) && (
+        <p className="mb-3 rounded-xl bg-red-50 px-4 py-2.5 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
+          🚫 관리자가 숨긴 사건이에요. 사건 목록에 보이지 않고 다른 사람은 플레이할 수 없어요.
+          {full.case.hiddenReason && <span className="mt-0.5 block text-xs">이유: {full.case.hiddenReason}</span>}
+          {isOwner && <span className="mt-0.5 block text-xs">내용을 고친 뒤 문의 메일로 알려 주시면 다시 확인해 드려요.</span>}
+        </p>
+      )}
       {(isOwner || admin) && (
-        <div className="mb-3 flex items-center justify-between rounded-xl bg-zinc-100 px-4 py-2.5 text-sm dark:bg-zinc-800">
+        <div className="mb-3 flex flex-wrap items-center justify-between gap-2 rounded-xl bg-zinc-100 px-4 py-2.5 text-sm dark:bg-zinc-800">
           <span>{admin ? "🛡 관리자" : full.case.isPublic ? "🌐 공개 중인 내 사건" : "🔒 비공개 사건 (나만 볼 수 있어요)"}</span>
-          <span className="flex gap-3">
+          <span className="flex items-center gap-3">
+            {admin && <HideCase caseId={id} hidden={!!full.case.hiddenAt} size="md" />}
             <Link href={`/cases/${id}/answer`} className="font-medium text-red-600 hover:underline">
               정답지
             </Link>

@@ -27,5 +27,5 @@ async function EditCase({ params }: { params: PageProps<"/cases/[id]/edit">["par
   // 진상이 담긴 화면이므로 만든 사람만. 공식 사건(owner 없음)은 아무도 못 연다
   if (!full || full.case.ownerId !== userId) notFound();
 
-  return <CaseEditor initial={toCaseFile(full)} initialPublic={full.case.isPublic} caseId={id} />;
+  return <CaseEditor initial={toCaseFile(full)} initialPublic={full.case.isPublic} caseId={id} hiddenReason={full.case.hiddenAt ? full.case.hiddenReason : null} />;
 }

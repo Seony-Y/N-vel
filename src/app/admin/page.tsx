@@ -3,12 +3,13 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ApiBudget } from "@/components/admin/ApiBudget";
 import { CreditRequests } from "@/components/admin/CreditRequests";
+import { HideCase } from "@/components/admin/HideCase";
 import { EventsPanel } from "@/components/admin/EventsPanel";
 import { Panel, PeriodTabs, pct, StatTile, Table, Td } from "@/components/admin/ui";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
 import { formatUsd } from "@/lib/ai/models";
-import { apiBudget, overview, perCase, perUser, recentEvents } from "@/lib/admin/stats";
+import { apiBudget, moderationCases, overview, perCase, perUser, recentEvents } from "@/lib/admin/stats";
 import { requireAdmin } from "@/lib/auth";
 import { pendingRequests } from "@/lib/credit-requests";
 
@@ -28,7 +29,7 @@ export default function AdminPage({ searchParams }: PageProps<"/admin">) {
 async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["searchParams"] }) {
   await requireAdmin("/admin");
   const days = Math.min(365, Math.max(1, Number((await searchParams).days) || 30));
-  const [o, users, cs, events, budget, requests] = await Promise.all([overview(days), perUser(days), perCase(days), recentEvents(30), apiBudget(), pendingRequests()]);
+  const [o, users, cs, events, budget, requests, published] = await Promise.all([overview(days), perUser(days), perCase(days), recentEvents(30), apiBudget(), pendingRequests(), moderationCases()]);
   const issues = (o.events.refusal ?? 0) + (o.events.rejected_clue ?? 0) + (o.events.truncated ?? 0);
 
   return (
@@ -75,6 +76,28 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
               <Td num>{c.credits.toLocaleString()}</Td>
               <Td num>{formatUsd(c.micros)}</Td>
               <Td num>{c.started ? formatUsd(Math.round(c.micros / c.started)) : "-"}</Td>
+            </tr>
+          ))}
+        </Table>
+      </Panel>
+
+      <Panel title={`공개 사건 관리 (${published.length})`}>
+        <Table head={["사건", "만든 사람", "상태", "수정", "관리"]} empty={!published.length}>
+          {published.map((c) => (
+            <tr key={c.id} className={c.hiddenAt ? "bg-red-50/50 dark:bg-red-950/20" : ""}>
+              <Td>
+                <Link href={`/cases/${c.id}`} className="font-medium hover:text-red-600">
+                  {c.isOfficial && "🏷 "}
+                  {c.title}
+                </Link>
+                {c.hiddenAt && c.hiddenReason && <div className="mt-0.5 text-xs text-zinc-500">숨긴 이유: {c.hiddenReason}</div>}
+              </Td>
+              <Td className="text-zinc-500">{c.isOfficial ? "공식" : (c.owner ?? "-")}</Td>
+              <Td>{c.hiddenAt ? "🚫 숨김" : "🌐 공개"}</Td>
+              <Td className="text-zinc-500">{c.updatedAt.toLocaleDateString("ko-KR")}</Td>
+              <Td>
+                <HideCase caseId={c.id} hidden={!!c.hiddenAt} />
+              </Td>
             </tr>
           ))}
         </Table>

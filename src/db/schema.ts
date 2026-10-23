@@ -117,6 +117,9 @@ export const cases = pgTable(
     ownerId: text("owner_id").references(() => user.id, { onDelete: "cascade" }), // 공식 사건은 null
     isOfficial: boolean("is_official").notNull().default(false),
     isPublic: boolean("is_public").notNull().default(false),
+    // 관리자 숨김: 공개 여부와 따로 둔다 (만든 사람이 공개 스위치를 다시 켜도 숨김이 풀리지 않도록)
+    hiddenAt: timestamp("hidden_at", { withTimezone: true }),
+    hiddenReason: text("hidden_reason").notNull().default(""),
     // ── 공개 정보 ──
     title: text("title").notNull(),
     tagline: text("tagline").notNull().default(""),

@@ -1,4 +1,4 @@
-import { and, asc, desc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { db } from "@/db";
 import { caseFavorites, cases, playSessions } from "@/db/schema";
 
@@ -30,7 +30,7 @@ export async function listPublicCases(sort: CaseSort = "recommended") {
     easy: [asc(cases.difficulty), desc(cases.createdAt)],
     hard: [desc(cases.difficulty), desc(cases.createdAt)],
   }[sort];
-  return db.select(listCols).from(cases).where(eq(cases.isPublic, true)).orderBy(...order).limit(60);
+  return db.select(listCols).from(cases).where(and(eq(cases.isPublic, true), isNull(cases.hiddenAt))).orderBy(...order).limit(60);
 }
 
 /** 프롤로그: 가이드가 있는 공개 공식 사건 */
@@ -38,7 +38,7 @@ export async function findPrologue() {
   const [row] = await db
     .select(listCols)
     .from(cases)
-    .where(and(eq(cases.isPublic, true), eq(cases.isOfficial, true), sql`jsonb_array_length(${cases.guide}) > 0`))
+    .where(and(eq(cases.isPublic, true), isNull(cases.hiddenAt), eq(cases.isOfficial, true), sql`jsonb_array_length(${cases.guide}) > 0`))
     .orderBy(asc(cases.createdAt))
     .limit(1);
   return row ?? null;
@@ -57,14 +57,14 @@ export async function myFavoriteCases(userId: string) {
     .select(listCols)
     .from(caseFavorites)
     .innerJoin(cases, eq(cases.id, caseFavorites.caseId))
-    .where(and(eq(caseFavorites.userId, userId), sql`(${cases.isPublic} or ${cases.ownerId} = ${userId})`))
+    .where(and(eq(caseFavorites.userId, userId), sql`((${cases.isPublic} and ${cases.hiddenAt} is null) or ${cases.ownerId} = ${userId})`))
     .orderBy(desc(caseFavorites.createdAt));
 }
 
 /** 내가 만든 사건 (공개·비공개 모두) */
 export async function listMyCases(userId: string) {
   return db
-    .select({ ...listCols, isPublic: cases.isPublic, updatedAt: cases.updatedAt })
+    .select({ ...listCols, isPublic: cases.isPublic, hiddenAt: cases.hiddenAt, hiddenReason: cases.hiddenReason, updatedAt: cases.updatedAt })
     .from(cases)
     .where(eq(cases.ownerId, userId))
     .orderBy(desc(cases.updatedAt));

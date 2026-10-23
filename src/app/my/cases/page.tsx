@@ -53,9 +53,18 @@ async function MyCases() {
             <div className="flex items-center gap-2">
               <span className="truncate font-medium">{c.title}</span>
               <span className="shrink-0 rounded bg-zinc-100 px-1.5 py-0.5 text-[11px] text-zinc-500 dark:bg-zinc-800">{RATING_LABEL[c.rating]}</span>
-              <span className={`shrink-0 text-[11px] ${c.isPublic ? "text-emerald-600" : "text-zinc-400"}`}>{c.isPublic ? "🌐 공개" : "🔒 비공개"}</span>
+              {c.hiddenAt ? (
+                <span className="shrink-0 text-[11px] text-red-600" title={c.hiddenReason || undefined}>
+                  🚫 관리자가 숨김
+                </span>
+              ) : (
+                <span className={`shrink-0 text-[11px] ${c.isPublic ? "text-emerald-600" : "text-zinc-400"}`}>{c.isPublic ? "🌐 공개" : "🔒 비공개"}</span>
+              )}
             </div>
-            <p className="text-xs text-zinc-400">수정 {c.updatedAt.toLocaleDateString("ko-KR")}</p>
+            <p className="text-xs text-zinc-400">
+              수정 {c.updatedAt.toLocaleDateString("ko-KR")}
+              {c.hiddenAt && c.hiddenReason && <span className="text-red-500"> · 숨긴 이유: {c.hiddenReason}</span>}
+            </p>
           </div>
           <div className="flex shrink-0 gap-2 text-sm">
             <Link href={`/cases/${c.id}`} className="rounded-lg border border-zinc-300 px-3 py-1.5 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">

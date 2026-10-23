@@ -21,7 +21,17 @@ const SEVERITY = {
   tip: { icon: "💡", cls: "text-zinc-600 dark:text-zinc-300" },
 } as const;
 
-export function CaseEditor({ initial, initialPublic, caseId }: { initial: Draft | null; initialPublic: boolean; caseId?: string }) {
+export function CaseEditor({
+  initial,
+  initialPublic,
+  caseId,
+  hiddenReason = null,
+}: {
+  initial: Draft | null;
+  initialPublic: boolean;
+  caseId?: string;
+  hiddenReason?: string | null; // 관리자가 숨긴 사건이면 이유 ("" 일 수 있음), 아니면 null
+}) {
   const router = useRouter();
   const [d, setD] = useState<Draft>(() => initial ?? emptyDraft());
   const [isPublic, setIsPublic] = useState(initialPublic);
@@ -183,6 +193,11 @@ export function CaseEditor({ initial, initialPublic, caseId }: { initial: Draft 
         {tab === "clues" && <CluesTab d={d} update={update} />}
         {tab === "truth" && <TruthTab d={d} update={update} />}
         {tab === "endings" && <EndingsTab d={d} update={update} />}
+        {tab === "review" && hiddenReason !== null && (
+          <p className="mb-4 rounded-xl bg-red-50 px-4 py-3 text-sm text-red-700 dark:bg-red-950/30 dark:text-red-300">
+            🚫 관리자가 숨긴 사건이라 공개를 켜도 목록에 보이지 않아요.{hiddenReason && ` 이유: ${hiddenReason}`} 고친 뒤 문의 메일로 알려 주세요.
+          </p>
+        )}
         {tab === "review" && <ReviewTab d={d} isPublic={isPublic} setIsPublic={(v) => (setIsPublic(v), setDirty(true))} caseId={caseId} />}
       </div>
 
@@ -190,7 +205,7 @@ export function CaseEditor({ initial, initialPublic, caseId }: { initial: Draft 
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
         <div className="mx-auto flex max-w-5xl items-center gap-3 px-4 py-3 sm:px-6">
-          <p className="min-w-0 flex-1 truncate text-sm text-zinc-500">{notice ?? (dirty ? "저장하지 않은 변경 사항이 있어요" : isPublic ? "🌐 공개 중" : "🔒 비공개")}</p>
+          <p className="min-w-0 flex-1 truncate text-sm text-zinc-500">{notice ?? (dirty ? "저장하지 않은 변경 사항이 있어요" : hiddenReason !== null ? "🚫 관리자가 숨김" : isPublic ? "🌐 공개 중" : "🔒 비공개")}</p>
           {caseId &&
             (confirmDelete ? (
               <>
