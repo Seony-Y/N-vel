@@ -1,5 +1,5 @@
 {
-  "id": "4534b86a-fe36-427c-8d0f-52a0a6fd7c77",
+  "id": "e37ff2b9-0aef-4eb3-9315-6881f7b81e58",
   "prevId": "df5b5760-5b5a-482b-b1df-5c15fe061961",
   "version": "7",
   "dialect": "postgresql",
@@ -195,73 +195,6 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
-    "public.case_favorites": {
-      "name": "case_favorites",
-      "schema": "",
-      "columns": {
-        "user_id": {
-          "name": "user_id",
-          "type": "text",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "case_id": {
-          "name": "case_id",
-          "type": "uuid",
-          "primaryKey": false,
-          "notNull": true
-        },
-        "created_at": {
-          "name": "created_at",
-          "type": "timestamp with time zone",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "now()"
-        }
-      },
-      "indexes": {},
-      "foreignKeys": {
-        "case_favorites_user_id_user_id_fk": {
-          "name": "case_favorites_user_id_user_id_fk",
-          "tableFrom": "case_favorites",
-          "tableTo": "user",
-          "columnsFrom": [
-            "user_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        },
-        "case_favorites_case_id_cases_id_fk": {
-          "name": "case_favorites_case_id_cases_id_fk",
-          "tableFrom": "case_favorites",
-          "tableTo": "cases",
-          "columnsFrom": [
-            "case_id"
-          ],
-          "columnsTo": [
-            "id"
-          ],
-          "onDelete": "cascade",
-          "onUpdate": "no action"
-        }
-      },
-      "compositePrimaryKeys": {
-        "case_favorites_user_id_case_id_pk": {
-          "name": "case_favorites_user_id_case_id_pk",
-          "columns": [
-            "user_id",
-            "case_id"
-          ]
-        }
-      },
-      "uniqueConstraints": {},
-      "policies": {},
-      "checkConstraints": {},
-      "isRLSEnabled": false
-    },
     "public.cases": {
       "name": "cases",
       "schema": "",
@@ -383,13 +316,6 @@
         },
         "guide": {
           "name": "guide",
-          "type": "jsonb",
-          "primaryKey": false,
-          "notNull": true,
-          "default": "'[]'::jsonb"
-        },
-        "script": {
-          "name": "script",
           "type": "jsonb",
           "primaryKey": false,
           "notNull": true,

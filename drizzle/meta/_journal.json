@@ -47,8 +47,15 @@
     {
       "idx": 6,
       "version": "7",
+      "when": 1792725241640,
+      "tag": "0006_guide",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
       "when": 1792730396040,
-      "tag": "0006_prologue_favorites",
+      "tag": "0007_prologue_favorites",
       "breakpoints": true
     }
   ]
