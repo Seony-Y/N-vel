@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { authClient } from "@/lib/auth-client";
 
@@ -28,7 +27,6 @@ const MENU = [
 
 /** 로그인했을 때: "OO님 ▾" 을 누르면 메뉴가 열린다. 바깥을 누르거나 Esc 로 닫힌다 */
 export function UserMenu({ name, credits }: { name: string; credits: number }) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
@@ -47,8 +45,10 @@ export function UserMenu({ name, credits }: { name: string; credits: number }) {
   async function signOut() {
     setOpen(false);
     await authClient.signOut();
-    router.push("/");
-    router.refresh();
+    // 화면에 남은 로그인 상태(헤더, 내 정보, 수사 화면 등)가 없도록 홈을 처음부터 다시 불러온다.
+    // router.push + refresh 는 둘이 엇갈리면 이전 화면이 남을 수 있어 일부러 전체를 새로 불러온다
+    // eslint-disable-next-line @next/next/no-location-assign-relative-destination
+    window.location.assign("/");
   }
 
   return (

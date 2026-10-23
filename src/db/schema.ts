@@ -227,6 +227,7 @@ export interface Accusation {
   evidenceIds: string[];
   narrative?: string; // 서술형 추리. 없으면 서술 채점 도입 전의 기록 (예전 배점으로 계산)
   narrativeGrade?: NarrativeGrade; // 제출할 때 AI 가 채점한 결과 (다시 채점하지 않도록 저장)
+  graded?: import("@/lib/game/rules").Grade; // 제출할 때의 채점 결과 전체. 나중에 사건을 고쳐도 결과 화면이 바뀌지 않도록
 }
 
 /** 서술형 추리 채점 결과. 채점 포인트마다 맞음(hit)·부분(partial)·빠짐(miss) */

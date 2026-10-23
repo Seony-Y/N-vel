@@ -5,12 +5,13 @@ import { Suspense } from "react";
 import { dt, EVENT_LABEL, Panel, StatTile, Table, Td } from "@/components/admin/ui";
 import { AnswerSheet } from "@/components/AnswerSheet";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { formatUsd } from "@/lib/ai/models";
 import { sessionDetail } from "@/lib/admin/stats";
 import { requireAdmin } from "@/lib/auth";
 import { endingText } from "@/lib/game/endings";
 import { loadCase } from "@/lib/game/load";
-import { grade } from "@/lib/game/rules";
+import { savedGrade } from "@/lib/game/rules";
 
 export const metadata: Metadata = { title: "플레이 기록 | N-vel 관리자" };
 
@@ -18,7 +19,7 @@ export default function AdminSessionPage({ params }: PageProps<"/admin/sessions/
   return (
     <>
       <SiteHeader />
-      <Suspense fallback={<p className="p-8 text-sm text-zinc-400">불러오는 중...</p>}>
+      <Suspense fallback={<Loading />}>
         <SessionDetail params={params} />
       </Suspense>
     </>
@@ -34,7 +35,7 @@ async function SessionDetail({ params }: { params: PageProps<"/admin/sessions/[i
   const full = await loadCase(s.caseId);
   if (!full) notFound();
 
-  const g = s.accusation ? grade(full, s, s.accusation) : null;
+  const g = savedGrade(full, s);
   const micros = d.usage.reduce((n, u) => n + u.costMicros, 0);
   const cacheRead = d.usage.reduce((n, u) => n + u.cacheReadTokens, 0);
   const inputAll = d.usage.reduce((n, u) => n + u.inputTokens + u.cacheReadTokens + u.cacheWriteTokens, 0);

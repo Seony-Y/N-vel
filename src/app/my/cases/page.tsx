@@ -3,6 +3,7 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { RATING_LABEL } from "@/components/CaseCard";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { requireUserId } from "@/lib/auth";
 import { listMyCases } from "@/lib/game/catalog";
 
@@ -19,7 +20,7 @@ export default function MyCasesPage() {
             + 사건 만들기
           </Link>
         </div>
-        <Suspense fallback={<p className="mt-8 text-sm text-zinc-400">불러오는 중...</p>}>
+        <Suspense fallback={<Loading />}>
           <MyCases />
         </Suspense>
       </main>

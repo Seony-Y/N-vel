@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { CaseActions } from "@/components/CaseActions";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { requireUserId } from "@/lib/auth";
 import { emptyProgress, myFavoriteCases, myPlayedCases } from "@/lib/game/catalog";
 import { endingText } from "@/lib/game/endings";
@@ -16,7 +17,7 @@ export default function MyPlaysPage({ searchParams }: PageProps<"/my/plays">) {
       <SiteHeader />
       <main className="mx-auto w-full max-w-4xl px-4 py-6 sm:px-6">
         <h1 className="text-2xl font-bold">내 수사</h1>
-        <Suspense fallback={<p className="mt-8 text-sm text-zinc-400">불러오는 중...</p>}>
+        <Suspense fallback={<Loading />}>
           <MyPlays searchParams={searchParams} />
         </Suspense>
       </main>

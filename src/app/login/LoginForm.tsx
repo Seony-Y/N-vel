@@ -52,7 +52,21 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
     >
       <div className="space-y-5">
         {notice && <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300">{notice}</p>}
-        <GoogleButton enabled={googleEnabled} next={next} />
+        <div>
+          <GoogleButton enabled={googleEnabled} next={next} />
+          {/* 처음 쓰는 구글 계정이면 여기서도 바로 가입되므로 같은 조건을 알린다 */}
+          <p className="mt-2 text-center text-xs leading-relaxed text-zinc-500">
+            처음이면 자동으로 가입돼요. 계속하면 만 14세 이상이며{" "}
+            <Link href="/terms" target="_blank" className="underline underline-offset-2">
+              이용약관
+            </Link>
+            ·
+            <Link href="/privacy" target="_blank" className="underline underline-offset-2">
+              개인정보처리방침
+            </Link>
+            에 동의하는 것으로 봐요.
+          </p>
+        </div>
 
         <div className="flex items-center gap-3 text-xs text-zinc-400">
           <span className="h-px flex-1 bg-zinc-200 dark:bg-zinc-800" />

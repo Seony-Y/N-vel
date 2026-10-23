@@ -4,10 +4,11 @@ import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CaseActions } from "@/components/CaseActions";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { requireUserId } from "@/lib/auth";
 import { loadCase, loadSession } from "@/lib/game/load";
 import { DEFAULT_GIVE_UP_ENDING, ENDINGS } from "@/lib/game/endings";
-import { type Grade, grade, SOLVED_SCORE } from "@/lib/game/rules";
+import { type Grade, SOLVED_SCORE, savedGrade } from "@/lib/game/rules";
 
 export const metadata: Metadata = { title: "수사 결과 | N-vel" };
 
@@ -15,7 +16,7 @@ export default function ResultPage({ params }: PageProps<"/play/[id]/result">) {
   return (
     <>
       <SiteHeader />
-      <Suspense fallback={<p className="p-8 text-sm text-zinc-400">결과를 정리하는 중...</p>}>
+      <Suspense fallback={<Loading text="결과를 정리하는 중..." />}>
         <Result params={params} />
       </Suspense>
     </>
@@ -81,7 +82,7 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
   if (!full) notFound();
   const c = full.case;
   // 포기한 수사는 제출한 추리가 없다
-  const g = session.accusation ? grade(full, session, session.accusation) : null;
+  const g = savedGrade(full, session);
   const ending = g?.ending ?? "gaveup";
   const endingText =
     ending === "correct" ? c.endingCorrect : ending === "partial" ? c.endingPartial : ending === "wrong" ? c.endingWrong : c.endingGiveUp || DEFAULT_GIVE_UP_ENDING;
@@ -167,6 +168,11 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
               <p className="flex justify-between px-1 text-sm text-zinc-500">
                 <span>힌트 사용 {session.hintsUsed}회</span>
                 <span>-{g.hintPenalty}점</span>
+              </p>
+            )}
+            {g.stale && (
+              <p className="rounded-lg bg-zinc-50 px-3 py-2 text-xs text-zinc-500 dark:bg-zinc-800/50">
+                제출한 뒤 사건 내용이 다듬어져서, 항목별 내역은 지금 기준으로 보여 드려요. 점수와 결과는 제출할 때 그대로예요.
               </p>
             )}
           </div>

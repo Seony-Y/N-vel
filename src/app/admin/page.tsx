@@ -5,6 +5,7 @@ import { ApiBudget } from "@/components/admin/ApiBudget";
 import { EventsPanel } from "@/components/admin/EventsPanel";
 import { Panel, PeriodTabs, pct, StatTile, Table, Td } from "@/components/admin/ui";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { formatUsd } from "@/lib/ai/models";
 import { apiBudget, overview, perCase, perUser, recentEvents } from "@/lib/admin/stats";
 import { requireAdmin } from "@/lib/auth";
@@ -15,7 +16,7 @@ export default function AdminPage({ searchParams }: PageProps<"/admin">) {
   return (
     <>
       <SiteHeader />
-      <Suspense fallback={<p className="p-8 text-sm text-zinc-400">집계하는 중...</p>}>
+      <Suspense fallback={<Loading text="집계하는 중..." />}>
         <Dashboard searchParams={searchParams} />
       </Suspense>
     </>

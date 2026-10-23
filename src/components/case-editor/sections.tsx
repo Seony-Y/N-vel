@@ -268,7 +268,7 @@ export function CluesTab({ d, update }: Props) {
             </div>
 
             <div className="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
-              <Toggle title="⭐ 결정적 증거" hint="추리 제출 때 이 단서를 고르면 점수를 받아요" checked={c.isKey} onChange={(v) => set((t) => void (t.isKey = v))} />
+              <Toggle title="⭐ 결정적 증거" hint="이 단서만 봐도 범인을 그 사람으로 좁힐 수 있을 때만 켜세요 (흉기·동기처럼 누가 했는지 말해 주지 않는 단서는 객관식으로)" checked={c.isKey} onChange={(v) => set((t) => void (t.isKey = v))} />
               {!isTestimony && (
                 <>
                   <Toggle title="🔒 잠금" hint="금고·자물쇠 등. 비밀번호를 입력해야만 얻을 수 있어요" checked={!!c.lock} onChange={(v) => set((t) => void (t.lock = v ? { label: "잠긴 상자", passcode: "" } : undefined))} />

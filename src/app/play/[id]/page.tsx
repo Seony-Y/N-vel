@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { CHAT_MODELS, getChatModel } from "@/lib/ai/models";
 import { requireUserId } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
@@ -15,7 +16,7 @@ export default function PlayPage({ params }: PageProps<"/play/[id]">) {
   return (
     <>
       <SiteHeader />
-      <Suspense fallback={<p className="p-8 text-sm text-zinc-400">사건 파일을 펼치는 중...</p>}>
+      <Suspense fallback={<Loading text="사건 파일을 펼치는 중..." />}>
         <Play params={params} />
       </Suspense>
     </>

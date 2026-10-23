@@ -48,8 +48,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
     await logEvent({ type: "error", where: "play/accuse", message: err instanceof Error ? err.message : String(err), userId: opened.userId, sessionId: id, caseId: full.case.id });
     return Response.json({ error: "추리 서술을 채점하지 못했어요. 잠시 후 다시 제출해 주세요 (아직 제출되지 않았어요)" }, { status: 502 });
   }
-  const accusation = { ...a, narrative, narrativeGrade };
-  const g = grade(full, session, accusation);
+  const g = grade(full, session, { ...a, narrative, narrativeGrade });
+  const accusation = { ...a, narrative, narrativeGrade, graded: g }; // 채점 결과까지 저장해 결과 화면이 나중에도 같게
   // status 조건으로 두 번 제출되는 것을 막는다
   const [done] = await db
     .update(playSessions)

@@ -115,6 +115,22 @@ export interface Grade {
   missedKeys: { name: string; found: boolean }[];
   /** 서술형 추리와 채점 결과 (예전 기록이면 null) */
   narrative: { text: string; grade: NarrativeGrade | null } | null;
+  /** 채점 결과를 저장하기 전의 기록이라 항목별 내역을 지금 사건 기준으로 다시 계산했고, 그 합이 저장된 점수와 다르다 */
+  stale?: boolean;
+}
+
+/**
+ * 결과 화면용 채점 결과. 제출할 때 저장해 둔 결과가 있으면 그대로 쓴다 (사건을 고쳐도 지난 기록은 그대로).
+ * 저장하기 전의 기록은 지금 사건으로 다시 계산하되, 점수·엔딩·일치율은 제출할 때 저장된 값을 쓴다
+ */
+export function savedGrade(full: FullCase, session: PlaySession): Grade | null {
+  const a = session.accusation;
+  if (!a) return null;
+  if (a.graded) return a.graded;
+  const g = grade(full, session, a);
+  if (session.score == null || session.ending == null || session.ending === "gaveup") return g;
+  const stale = g.score !== session.score || g.ending !== session.ending;
+  return { ...g, score: session.score, ending: session.ending, matchRate: session.matchRate ?? g.matchRate, stale };
 }
 
 export function grade(full: FullCase, session: PlaySession, a: Accusation): Grade {

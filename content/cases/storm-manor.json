@@ -238,14 +238,16 @@
       "name": "시신의 상태",
       "description": "후두부에 둔기에 맞은 상처가 있다. 사다리 옆에 쓰러져 있지만, 사다리에서 떨어졌다면 생기기 어려운 위치의 상처다. 바닥의 혈흔이 책상 쪽에서 사다리 쪽으로 끌린 듯 번져 있다.",
       "location": "L1",
-      "discoverHint": "시신을 살펴보거나 상처를 확인하면 발견"
+      "discoverHint": "시신을 살펴보거나 상처를 확인하면 발견",
+      "isKey": false
     },
     {
       "code": "C2",
       "name": "한 짝뿐인 북엔드",
       "description": "책장 위의 청동 북엔드가 한 짝만 남아 있다. 원래 한 쌍이었던 자리에 먼지 자국만 있다.",
       "location": "L1",
-      "discoverHint": "책장을 살펴보면 발견"
+      "discoverHint": "책장을 살펴보면 발견",
+      "isKey": false
     },
     {
       "code": "C3",
@@ -260,7 +262,8 @@
       "name": "유리문 앞 빗물",
       "description": "테라스로 이어지는 서재 유리문의 걸쇠가 풀려 있고, 문 앞 바닥에 빗물이 고여 있다. 누군가 비 오는 바깥에서 드나든 듯하다.",
       "location": "L1",
-      "discoverHint": "유리문, 창문, 테라스 쪽 바닥을 살펴보면 발견"
+      "discoverHint": "유리문, 창문, 테라스 쪽 바닥을 살펴보면 발견",
+      "isKey": false
     },
     {
       "code": "C5",
@@ -272,7 +275,7 @@
         "label": "책상 뒤 금고 (숫자 4자리)",
         "passcode": "0917"
       },
-      "isKey": true
+      "isKey": false
     },
     {
       "code": "C6",
@@ -280,14 +283,15 @@
       "description": "테라스의 큰 화분 흙 속에서 청동 북엔드 한 짝이 나왔다. 모서리에 핏자국이 말라붙어 있다. 서재에 남은 북엔드와 짝이 맞는다.",
       "location": "L3",
       "discoverHint": "화분이나 흙을 살펴보거나 파 보면 발견",
-      "isKey": true
+      "isKey": false
     },
     {
       "code": "C7",
       "name": "진흙 발자국",
       "description": "서재 유리문과 음악실 문 사이 돌바닥에, 화분 쪽 흙바닥에서 묻어 온 진흙 구두 발자국이 남아 있다. 처마 밑이라 빗물에 씻기지 않았다. 밑창에 촘촘한 마름모 무늬가 찍혀 있다.",
       "location": "L3",
-      "discoverHint": "테라스 바닥을 살펴보면 발견"
+      "discoverHint": "테라스 바닥을 살펴보면 발견",
+      "isKey": false
     },
     {
       "code": "C8",
@@ -302,7 +306,8 @@
       "name": "액자 뒤 메모",
       "description": "가족사진 액자 뒷면에 붙은 메모. '금고 – 서진이 생일'.",
       "location": "L1",
-      "discoverHint": "액자나 가족사진을 살펴보면 발견"
+      "discoverHint": "액자나 가족사진을 살펴보면 발견",
+      "isKey": false
     },
     {
       "code": "C10",
@@ -317,14 +322,16 @@
       "name": "찢어진 인수 의향서",
       "description": "한서진의 방 휴지통에서 나온 서류 조각. 경쟁 출판사가 도윤문고를 인수하겠다는 의향서다. 서명란에 한서진의 이름이 있다.",
       "location": "L4",
-      "discoverHint": "한서진의 방이나 휴지통을 살펴보면 발견"
+      "discoverHint": "한서진의 방이나 휴지통을 살펴보면 발견",
+      "isKey": false
     },
     {
       "code": "C12",
       "name": "흙탕물 걸레",
       "description": "세탁실 빨래 바구니 속 걸레. 흙탕물이 잔뜩 배어 있다. 누군가 진흙 섞인 물을 닦은 것 같다.",
       "location": "L5",
-      "discoverHint": "빨래 바구니나 세탁실을 살펴보면 발견"
+      "discoverHint": "빨래 바구니나 세탁실을 살펴보면 발견",
+      "isKey": false
     },
     {
       "code": "C13",
@@ -344,42 +351,47 @@
       "discoverHint": "정민호 방의 원고 뭉치나 책상을 살펴보면 발견",
       "docHtml": "",
       "requires": [],
-      "isKey": false
+      "isKey": true
     },
     {
       "code": "T1",
       "name": "가정부의 증언: 말다툼",
       "description": "박순자: 22시 15분쯤 서재에서 서진 아가씨와 대표님이 크게 다투는 소리를 들었다. 22시 25분쯤 다시 지날 때는 대표님 혼자 헛기침하는 소리만 났다.",
       "holder": "S4",
-      "discoverHint": "그날 밤 들은 소리나 본 것을 물으면 말해 준다"
+      "discoverHint": "그날 밤 들은 소리나 본 것을 물으면 말해 준다",
+      "isKey": false
     },
     {
       "code": "T2",
       "name": "가정부의 증언: 물자국",
       "description": "박순자: 22시 50분쯤 테라스 쪽 복도에서 2층 손님방 쪽까지 이어진 물자국을 닦았다. 구두 발자국이었다.",
       "holder": "S4",
-      "discoverHint": "걸레(C12)를 제시받아야만 말한다"
+      "discoverHint": "걸레(C12)를 제시받아야만 말한다",
+      "isKey": false
     },
     {
       "code": "T3",
       "name": "비서의 증언: 자리 비움",
       "description": "윤채린: 22시 20분부터 15분쯤 차고에서 통화하느라 응접실을 비웠다. 작가가 피아노 치는 모습을 직접 본 적은 없다.",
       "holder": "S3",
-      "discoverHint": "전축(C8)을 제시받아야만 말한다"
+      "discoverHint": "전축(C8)을 제시받아야만 말한다",
+      "isKey": false
     },
     {
       "code": "T4",
       "name": "딸의 증언: 22시 20분",
       "description": "한서진: 22시 10분부터 아버지와 다퉜고 22시 20분에 방으로 올라갔다. 그때 아버지는 살아 있었다. 방에 들어가고 몇 분 뒤(22:25~22:30쯤) 아래층에서 유리문 여닫는 소리를 들었다.",
       "holder": "S1",
-      "discoverHint": "말다툼 증거(T1 또는 C11)를 제시받아야만 말한다"
+      "discoverHint": "말다툼 증거(T1 또는 C11)를 제시받아야만 말한다",
+      "isKey": false
     },
     {
       "code": "T5",
       "name": "서진의 생일",
       "description": "한서진의 생일은 9월 17일 (0917).",
       "holder": "S1",
-      "discoverHint": "생일을 물으면 알려준다"
+      "discoverHint": "생일을 물으면 알려준다",
+      "isKey": false
     }
   ]
 }

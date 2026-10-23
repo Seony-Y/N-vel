@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { CaseActions } from "@/components/CaseActions";
 import { CaseCard } from "@/components/CaseCard";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { getUserId } from "@/lib/auth";
 import { CASE_SORTS, type CaseListItem, type CaseSort, findPrologue, listPublicCases, myFavoriteIds, myProgress } from "@/lib/game/catalog";
 
@@ -19,7 +20,7 @@ export default function Home({ searchParams }: PageProps<"/">) {
           <p className="mt-3 text-zinc-500 dark:text-zinc-400">현장을 조사하고, 용의자를 심문하고, 범인을 지목하세요.</p>
         </section>
 
-        <Suspense fallback={<p className="mt-12 text-sm text-zinc-400">불러오는 중...</p>}>
+        <Suspense fallback={<Loading />}>
           <CaseList searchParams={searchParams} />
         </Suspense>
       </main>

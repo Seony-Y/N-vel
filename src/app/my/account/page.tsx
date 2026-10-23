@@ -4,6 +4,7 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { db } from "@/db";
 import { account, user } from "@/db/schema";
 import { requireUserId } from "@/lib/auth";
@@ -17,7 +18,7 @@ export default function AccountPage() {
       <SiteHeader />
       <main className="mx-auto w-full max-w-2xl space-y-6 px-4 py-6 sm:px-6">
         <h1 className="text-2xl font-bold">계정 설정</h1>
-        <Suspense fallback={<p className="text-sm text-zinc-400">불러오는 중...</p>}>
+        <Suspense fallback={<Loading />}>
           <Account />
         </Suspense>
       </main>

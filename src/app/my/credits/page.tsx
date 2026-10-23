@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { Suspense } from "react";
 import { CreditLedger } from "@/components/CreditLedger";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { CHAT_MODELS } from "@/lib/ai/models";
 import { requireUserId } from "@/lib/auth";
 import { getBalance, ledger } from "@/lib/credits";
@@ -14,7 +15,7 @@ export default function MyCreditsPage() {
       <SiteHeader />
       <main className="mx-auto w-full max-w-3xl space-y-6 px-4 py-6 sm:px-6">
         <h1 className="text-2xl font-bold">내 크레딧</h1>
-        <Suspense fallback={<p className="text-sm text-zinc-400">불러오는 중...</p>}>
+        <Suspense fallback={<Loading />}>
           <MyCredits />
         </Suspense>
       </main>

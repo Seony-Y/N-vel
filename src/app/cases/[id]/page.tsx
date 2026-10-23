@@ -6,6 +6,7 @@ import { CaseActions } from "@/components/CaseActions";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { CHAT_MODELS, DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { getUserId, isAdmin } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
@@ -18,7 +19,7 @@ export default function CasePage({ params }: PageProps<"/cases/[id]">) {
   return (
     <>
       <SiteHeader />
-      <Suspense fallback={<p className="p-8 text-sm text-zinc-400">불러오는 중...</p>}>
+      <Suspense fallback={<Loading />}>
         <CaseDetail params={params} />
       </Suspense>
     </>

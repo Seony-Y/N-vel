@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { AnswerSheet } from "@/components/AnswerSheet";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { isAdmin, requireUserId } from "@/lib/auth";
 import { loadCase } from "@/lib/game/load";
 
@@ -13,7 +14,7 @@ export default function AnswerPage({ params }: PageProps<"/cases/[id]/answer">) 
   return (
     <>
       <SiteHeader />
-      <Suspense fallback={<p className="p-8 text-sm text-zinc-400">불러오는 중...</p>}>
+      <Suspense fallback={<Loading />}>
         <Answer params={params} />
       </Suspense>
     </>

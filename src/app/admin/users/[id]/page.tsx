@@ -7,6 +7,7 @@ import { GrantCredits } from "@/components/admin/GrantCredits";
 import { CreditLedger } from "@/components/CreditLedger";
 import { dt, Panel, pct, StatTile, Table, Td } from "@/components/admin/ui";
 import { SiteHeader } from "@/components/SiteHeader";
+import { Loading } from "@/components/Loading";
 import { CHAT_MODELS, formatUsd } from "@/lib/ai/models";
 import { recentEvents, userSessions } from "@/lib/admin/stats";
 import { requireAdmin } from "@/lib/auth";
@@ -19,7 +20,7 @@ export default function AdminUserPage({ params }: PageProps<"/admin/users/[id]">
   return (
     <>
       <SiteHeader />
-      <Suspense fallback={<p className="p-8 text-sm text-zinc-400">불러오는 중...</p>}>
+      <Suspense fallback={<Loading />}>
         <UserDetail params={params} />
       </Suspense>
     </>
