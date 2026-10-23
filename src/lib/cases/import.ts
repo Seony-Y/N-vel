@@ -43,7 +43,7 @@ export async function writeCase(
     briefing: file.briefing,
     introHtml: file.introHtml,
     victim: file.victim,
-    maxActions: file.maxActions,
+    targetActions: file.targetActions,
     hints: file.hints,
     guide: file.guide.map((g) => ({ ...g, ...(g.goal && { goal: { ...g.goal, ...(g.goal.target && { target: id(g.goal.target) }), ...(g.goal.clue && { clue: id(g.goal.clue) }) } }) })),
     script: file.script.map((s) => ({ ...s, where: id(s.where), ...(s.present && { present: id(s.present) }), reveals: s.reveals.map(id), requires: s.requires.map(id) })),
@@ -147,7 +147,7 @@ export function toCaseFile(full: FullCase): CaseFile {
     briefing: c.briefing,
     introHtml: c.introHtml,
     victim: c.victim,
-    maxActions: c.maxActions,
+    targetActions: c.targetActions,
     hints: c.hints,
     guide: c.guide.map((g) => ({ ...g, ...(g.goal && { goal: { ...g.goal, ...(g.goal.target && { target: code.get(g.goal.target) ?? "" }), ...(g.goal.clue && { clue: code.get(g.goal.clue) }) } }) })),
     script: c.script.map((s) => ({

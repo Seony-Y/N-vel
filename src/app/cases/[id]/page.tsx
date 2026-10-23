@@ -14,6 +14,7 @@ import { myFavoriteIds, mySessionsFor } from "@/lib/game/catalog";
 import { endingText } from "@/lib/game/endings";
 import { canPlay, loadCase } from "@/lib/game/load";
 import { publicCase } from "@/lib/game/public";
+import { EFFICIENCY_HALF_RATIO, POINTS } from "@/lib/game/rules";
 
 export default function CasePage({ params }: PageProps<"/cases/[id]">) {
   return (
@@ -75,7 +76,7 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
               난이도 <Difficulty value={c.difficulty} />
             </span>
             <span>약 {c.estimatedMinutes}분</span>
-            {c.maxActions && <span>⏱ 행동 {c.maxActions}회 안에 해결</span>}
+            {c.targetActions && <span>🎯 목표 행동 {c.targetActions}회</span>}
             {c.warningTags.map((t) => (
               <span key={t}>#{t}</span>
             ))}
@@ -83,10 +84,10 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
               <FavoriteButton caseId={id} initial={favorites.has(id)} loggedIn={!!userId} variant="text" />
             </span>
           </div>
-          {c.maxActions && (
+          {c.targetActions && (
             <p className="-mt-3 rounded-lg bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-500 dark:bg-zinc-800/50">
-              ⏱ <b className="font-medium">행동</b>은 장소를 조사하거나, 용의자에게 질문하거나, 증거를 제시할 때마다 1회씩 줄어요 (비밀번호를 틀려도 1회). 장소 이동, 수첩 보기, 힌트는 횟수를 쓰지 않아요.
-              {c.maxActions}회를 다 쓰면 그때까지 모은 단서로 추리를 제출해야 해요.
+              🎯 <b className="font-medium">행동</b>은 장소를 조사하거나, 용의자에게 질문하거나, 증거를 제시할 때마다 1회로 세요 (비밀번호를 틀려도 1회). 장소 이동, 수첩, 힌트는 세지 않아요.
+              횟수에 제한은 없고, 범인을 맞히면서 {c.targetActions}회 안에 풀면 효율 보너스 +{POINTS.efficiency}점, {Math.floor(c.targetActions * EFFICIENCY_HALF_RATIO)}회 안이면 +{POINTS.efficiency / 2}점을 받아요.
             </p>
           )}
 

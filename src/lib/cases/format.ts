@@ -9,7 +9,14 @@ import { MAX_HINTS } from "@/lib/game/rules";
 const code = z.string().regex(/^[A-Z][A-Z0-9]{0,7}$/, "코드는 영문 대문자로 시작하는 짧은 문자열 (예: C1)");
 const https = z.url({ protocol: /^https$/ });
 
-export const CaseFile = z
+/** 예전 사건 파일의 maxActions(행동 횟수 제한)를 targetActions(목표 행동 수)로 옮긴다 */
+const renameLegacy = (v: unknown) => {
+  if (!v || typeof v !== "object" || !("maxActions" in v) || "targetActions" in v) return v;
+  const { maxActions, ...rest } = v as Record<string, unknown>;
+  return { ...rest, targetActions: maxActions };
+};
+
+const CaseFileShape = z
   .object({
     slug: z.string().regex(/^[a-z0-9-]+$/).optional(),
     title: z.string().min(1).max(80),
@@ -22,7 +29,8 @@ export const CaseFile = z
     briefing: z.string().min(1).max(4000),
     introHtml: z.string().max(50 * 1024).default(""),
     victim: z.string().max(2000).default(""),
-    maxActions: z.number().int().min(5).max(500).nullable().default(null),
+    // 목표 행동 수: 범인을 맞히고 이 안에 풀면 효율 보너스. 행동을 막지는 않는다 (예전 파일의 maxActions 도 받아 준다)
+    targetActions: z.number().int().min(5).max(500).nullable().default(null),
     hints: z.array(z.string().max(500)).max(MAX_HINTS, `힌트는 ${MAX_HINTS}개까지 넣을 수 있어요`).default([]), // 순서대로 공개. 뒤로 갈수록 결정적으로
     // 플레이 가이드: 화면에 단계별로 보여 주고, 목표를 이루면 다음 단계로 넘어간다 (스포일러이므로 튜토리얼 사건에만)
     guide: z
@@ -152,4 +160,5 @@ export const CaseFile = z
     if (!c.clues.some((x) => x.isKey)) issue("결정적 증거(isKey)가 하나 이상 있어야 합니다");
   });
 
-export type CaseFile = z.infer<typeof CaseFile>;
+export const CaseFile = z.preprocess(renameLegacy, CaseFileShape);
+export type CaseFile = z.infer<typeof CaseFileShape>;

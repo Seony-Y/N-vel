@@ -128,7 +128,7 @@ export const cases = pgTable(
     briefing: text("briefing").notNull().default(""), // 플레이 시작 시 보여주는 사건 개요
     introHtml: text("intro_html").notNull().default(""), // 꾸민 도입부 (선택)
     victim: text("victim").notNull().default(""), // 피해자 공개 정보
-    maxActions: integer("max_actions"), // 행동 횟수 제한. null 이면 무제한
+    targetActions: integer("max_actions"), // 목표 행동 수. 범인을 맞히고 이 안에 풀면 효율 보너스 (제한은 아님). null 이면 보너스 없음
     hints: text("hints").array().notNull().default([]), // 순서대로 공개, 쓸 때마다 감점
     guide: jsonb("guide").$type<GuideStep[]>().notNull().default([]), // 처음 하는 사람을 위한 단계별 안내 (프롤로그 사건)
     script: jsonb("script").$type<ScriptLine[]>().notNull().default([]), // 있으면 AI 대신 정해진 대본으로 진행 (무료)

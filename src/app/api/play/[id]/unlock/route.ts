@@ -1,13 +1,12 @@
 import { z } from "zod";
 import { publicState } from "@/lib/game/public";
-import { actionsLeft } from "@/lib/game/rules";
 import { addMessages, addProgress, openSession } from "@/lib/game/session";
 
 const Body = z.object({ clueId: z.uuid(), code: z.string().trim().min(1).max(30) });
 
 /**
  * POST /api/play/:id/unlock  잠금 장치에 비밀번호 입력.
- * 틀리면 행동 1회를 쓴다 (마구 눌러 맞히는 것을 막기 위해). 맞으면 단서를 얻는다.
+ * 틀리면 행동 1회로 센다 (마구 눌러 맞히면 효율 보너스를 잃도록). 맞으면 단서를 얻는다.
  */
 export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/unlock">) {
   const { id } = await ctx.params;
@@ -22,7 +21,6 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/u
   if (!clue) return Response.json({ error: "없는 잠금 장치입니다" }, { status: 400 });
   if (clue.locationId !== session.currentLocationId) return Response.json({ error: "그 장소에 가야 열 수 있습니다" }, { status: 400 });
   if (session.foundClueIds.includes(clue.id)) return Response.json({ ok: true, state: publicState(full, session) });
-  if (actionsLeft(full, session) === 0) return Response.json({ error: "행동 횟수를 모두 썼습니다" }, { status: 403 });
 
   const label = clue.lockLabel ?? "잠금 장치";
   if (parsed.data.code !== clue.passcode) {

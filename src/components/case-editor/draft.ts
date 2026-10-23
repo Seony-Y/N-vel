@@ -27,7 +27,7 @@ export function emptyDraft(): Draft {
     briefing: "",
     introHtml: "",
     victim: "",
-    maxActions: 50,
+    targetActions: 30,
     hints: [],
     guide: [],
     script: [],

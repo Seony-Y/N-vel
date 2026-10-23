@@ -1,3 +1,4 @@
+import { after } from "next/server";
 import { z } from "zod";
 import { anthropic, CHAT_MAX_TOKENS } from "@/lib/ai/config";
 import { MOCK_AI, mockGameReply, streamText } from "@/lib/ai/mock";
@@ -7,7 +8,7 @@ import { changeCredits, getBalance } from "@/lib/credits";
 import { loadThread } from "@/lib/game/load";
 import { extractClueCodes, extractMoves, extractSuggestions, narratorPrompt, suspectPrompt, visibleText } from "@/lib/game/prompts";
 import { publicState } from "@/lib/game/public";
-import { actionsLeft, breakpointFor, discoverable, tellableBy, validateRequested } from "@/lib/game/rules";
+import { breakpointFor, discoverable, tellableBy, validateRequested } from "@/lib/game/rules";
 import { addMessages, addProgress, openSession } from "@/lib/game/session";
 import type { FullCase } from "@/lib/game/load";
 import type { Clue, PlaySession } from "@/types/db";
@@ -39,7 +40,6 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
   if (!parsed.success) return Response.json({ error: "잘못된 요청" }, { status: 400 });
   const { target, message, presentClueId } = parsed.data;
   if (!message && !presentClueId) return Response.json({ error: "행동이나 질문을 입력하세요" }, { status: 400 });
-  if (actionsLeft(full, session) === 0) return Response.json({ error: "행동 횟수를 모두 썼습니다. 추리를 제출하세요" }, { status: 403 });
 
   const model = getChatModel(session.model);
   const isNarrator = target === "narrator";
@@ -95,8 +95,23 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
       : anthropicSource({ model: model.id, supportsFallback: model.supportsFallback, system, messages });
 
   const encoder = new TextEncoder();
+  // 사용자가 새로고침하거나 화면을 닫아 연결이 끊겨도 AI 답을 끝까지 받아 저장한다 (끊긴 뒤에는 보내기만 멈춘다).
+  // after() 가 이 작업이 끝날 때까지 서버 함수를 붙잡아 둔다
+  let disconnected = false;
+  let markDone!: () => void;
+  const done = new Promise<void>((resolve) => (markDone = resolve));
+  after(() => done);
+
   const body = new ReadableStream<Uint8Array>({
     async start(controller) {
+      const send = (text: string) => {
+        if (disconnected) return;
+        try {
+          controller.enqueue(encoder.encode(text));
+        } catch {
+          disconnected = true;
+        }
+      };
       let raw = "";
       let sent = 0;
       try {
@@ -104,7 +119,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
           raw += chunk;
           const visible = visibleText(raw);
           if (visible.length > sent) {
-            controller.enqueue(encoder.encode(visible.slice(sent)));
+            send(visible.slice(sent));
             sent = visible.length;
           }
         }
@@ -116,10 +131,10 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
         const ctxLog = { userId, sessionId: id, caseId: full.case.id };
         if (result?.refused) {
           finalText = "(이 내용에는 응답할 수 없습니다. 다른 방식으로 행동해 보세요)";
-          controller.enqueue(encoder.encode(finalText.slice(sent)));
+          send(finalText.slice(sent));
           await logEvent({ type: "refusal", where, message: "AI 가 응답을 거절했습니다", ...ctxLog, detail: { thread, userText } });
         } else {
-          if (finalText.length > sent) controller.enqueue(encoder.encode(finalText.slice(sent)));
+          if (finalText.length > sent) send(finalText.slice(sent));
           // AI 가 요청한 단서 중 규칙상 허용되는 것만 인정
           const requested = extractClueCodes(raw);
           const accepted = validateRequested(requested, candidates);
@@ -156,7 +171,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
         ]);
         session = updated;
 
-        controller.enqueue(encoder.encode(TRAILER + JSON.stringify({ state: publicState(full, session), events, talkTo, suggestions: result?.refused ? [] : extractSuggestions(raw), credits: balance })));
+        send(TRAILER + JSON.stringify({ state: publicState(full, session), events, talkTo, suggestions: result?.refused ? [] : extractSuggestions(raw), credits: balance }));
       } catch (err) {
         console.error("[play/act] 응답 실패", err);
         await logEvent({ type: "error", where: "play/act", message: err instanceof Error ? err.message : String(err), userId, sessionId: id, caseId: full.case.id, detail: { thread } });
@@ -164,12 +179,19 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
         await saving.catch(() => null);
         const refunded = await changeCredits({ userId, amount: model.credits, reason: "refund", sessionId: id, note: "응답 오류" }).catch(() => null);
         session = (await addProgress(id, { credits: -model.credits }).catch(() => null)) ?? session;
-        controller.enqueue(
-          encoder.encode("\n\n(응답 중 오류가 발생했습니다. 크레딧은 돌려드렸어요)" + TRAILER + JSON.stringify({ state: publicState(full, session), events: [], talkTo: null, suggestions: [], credits: refunded ?? balance })),
-        );
+        send("\n\n(응답 중 오류가 발생했습니다. 크레딧은 돌려드렸어요)" + TRAILER + JSON.stringify({ state: publicState(full, session), events: [], talkTo: null, suggestions: [], credits: refunded ?? balance }));
       } finally {
-        controller.close();
+        if (!disconnected) {
+          try {
+            controller.close();
+          } catch {}
+        }
+        markDone();
       }
+    },
+    // 사용자가 연결을 끊음: 보내기만 멈추고 저장은 계속한다
+    cancel() {
+      disconnected = true;
     },
   });
 

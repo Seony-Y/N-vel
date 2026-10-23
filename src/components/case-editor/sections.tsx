@@ -73,7 +73,15 @@ export function BasicTab({ d, update }: Props) {
           />
           <NumberInput title="난이도 (1~5)" value={d.difficulty} min={1} max={5} onChange={(v) => update((x) => void (x.difficulty = Math.min(5, Math.max(1, v ?? 1))))} />
           <NumberInput title="예상 시간 (분)" value={d.estimatedMinutes} min={5} max={600} onChange={(v) => update((x) => void (x.estimatedMinutes = v ?? 30))} />
-          <NumberInput title="행동 횟수 제한" hint="비우면 무제한" value={d.maxActions} min={5} max={500} allowEmpty onChange={(v) => update((x) => void (x.maxActions = v))} />
+          <NumberInput
+            title="목표 행동 수"
+            hint={`범인을 맞히고 이 안에 풀면 효율 보너스 +${POINTS.efficiency}점 (1.5배 안이면 절반). 행동을 막지는 않아요. 비우면 보너스 없음`}
+            value={d.targetActions}
+            min={5}
+            max={500}
+            allowEmpty
+            onChange={(v) => update((x) => void (x.targetActions = v))}
+          />
         </div>
         <TextInput
           title="경고 태그"

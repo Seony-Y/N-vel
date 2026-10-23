@@ -50,9 +50,6 @@ export function breakpointFor(full: FullCase, session: PlaySession, suspectId: s
   return bp;
 }
 
-export function actionsLeft(full: FullCase, session: PlaySession) {
-  return full.case.maxActions == null ? null : Math.max(0, full.case.maxActions - session.actionsUsed);
-}
 
 /*
  * 정답 기준 (한곳에서 관리)
@@ -60,13 +57,24 @@ export function actionsLeft(full: FullCase, session: PlaySession) {
  *   부분 해결 = 범인은 맞혔지만 점수가 모자람 (동기·수법·증거 중 틀린 게 많음)
  *   실패      = 범인을 틀림 (나머지를 다 맞혀도 실패)
  * 점수 = 범인 40 + 객관식 20(문항 수로 나눔) + 결정적 증거 15(맞힌 개수 비율) + 추리 서술 25(채점 포인트 비율) - 힌트 1개당 HINT_PENALTY(5)
+ *        + 효율 보너스: 범인을 맞히고 목표 행동 수 안에 풀면 +10, 1.5배 안이면 +5 (최대 110점)
  *   서술 없이 나머지를 다 맞히면 75점이라, 해결하려면 사건의 전말을 어느 정도 써야 한다
  * 서술 채점 도입 전에 제출한 기록(narrative 없음)은 예전 배점(LEGACY_POINTS)으로 계산한다.
  * 관리자 통계의 "성공"은 '해결'만 센다.
  */
 export const SOLVED_SCORE = 80;
-export const POINTS = { culprit: 40, quiz: 20, evidence: 15, narrative: 25 } as const;
-const LEGACY_POINTS = { culprit: 50, quiz: 30, evidence: 20, narrative: 0 } as const;
+export const POINTS = { culprit: 40, quiz: 20, evidence: 15, narrative: 25, efficiency: 10 } as const;
+const LEGACY_POINTS = { culprit: 50, quiz: 30, evidence: 20, narrative: 0, efficiency: 0 } as const;
+/** 목표 행동 수의 이 배수 안이면 효율 보너스 절반 */
+export const EFFICIENCY_HALF_RATIO = 1.5;
+
+/** 효율 보너스: 목표 행동 수 안이면 전부, 1.5배 안이면 절반 */
+export function efficiencyBonus(target: number | null, used: number, max: number) {
+  if (!target) return 0;
+  if (used <= target) return max;
+  if (used <= Math.floor(target * EFFICIENCY_HALF_RATIO)) return max / 2;
+  return 0;
+}
 const LEGACY_HINT_PENALTY = 10; // 예전 기록은 제출할 때의 감점으로 다시 계산해야 저장된 점수·엔딩과 맞는다
 export const MAX_NARRATIVE = 3000; // 서술형 추리 글자 수
 export const GUIDE_NOTE_MIN = 40; // 가이드 '추리 정리하기' 단계: 메모를 이만큼 쓰면 다음 단계로
@@ -88,7 +96,7 @@ function narrativeSummary(g: NarrativeGrade | undefined) {
 }
 
 export interface GradeItem {
-  kind: "culprit" | "quiz" | "evidence" | "narrative";
+  kind: "culprit" | "quiz" | "evidence" | "narrative" | "efficiency";
   label: string;
   ok: boolean;
   mine: string; // 플레이어가 고른 것
@@ -184,6 +192,20 @@ export function grade(full: FullCase, session: PlaySession, a: Accusation): Grad
             answer: narrativeSummary(a.narrativeGrade),
             points: P.narrative * ratio,
             max: P.narrative,
+          },
+        ]),
+    // 효율 보너스 (목표 행동 수가 있는 사건, 범인을 맞혔을 때만. 아무나 빨리 찍어서 받지 않도록)
+    ...(legacy || !c.targetActions
+      ? []
+      : [
+          {
+            kind: "efficiency" as const,
+            label: "효율 보너스",
+            ok: culpritCorrect && session.actionsUsed <= c.targetActions,
+            mine: `행동 ${session.actionsUsed}회`,
+            answer: `목표 ${c.targetActions}회 이내 +${P.efficiency} · ${Math.floor(c.targetActions * EFFICIENCY_HALF_RATIO)}회 이내 +${P.efficiency / 2} (범인을 맞혔을 때)`,
+            points: culpritCorrect ? efficiencyBonus(c.targetActions, session.actionsUsed, P.efficiency) : 0,
+            max: P.efficiency,
           },
         ]),
   ];

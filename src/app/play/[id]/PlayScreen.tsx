@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
-import { GUIDE_NOTE_MIN, HINT_PENALTY, MAX_EVIDENCE, MAX_NARRATIVE, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
+import { EFFICIENCY_HALF_RATIO, GUIDE_NOTE_MIN, HINT_PENALTY, MAX_EVIDENCE, MAX_NARRATIVE, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
 
 const TRAILER = "\u001e";
 const FOUND_PREFIX = "🔍 단서 발견: ";
@@ -73,7 +73,6 @@ export function PlayScreen({
   const location = data.locations.find((l) => l.id === state.currentLocationId) ?? null;
   const thread = target === "narrator" ? "narrator" : target;
   const threadMessages = useMemo(() => messages.filter((m) => m.thread === thread), [messages, thread]);
-  const outOfActions = state.actionsLeft === 0;
   const badges = (
     <div className="flex flex-wrap items-center gap-1.5">
       {data.scripted ? (
@@ -89,7 +88,7 @@ export function PlayScreen({
           </span>
         </>
       )}
-      <ActionsBadge state={state} />
+      <ActionsBadge used={state.actionsUsed} target={data.targetActions} />
     </div>
   );
 
@@ -206,7 +205,7 @@ export function PlayScreen({
         if (clue) setOpenClue(clue);
       } else {
         pushLocal({ thread: "narrator", role: "event", content: `🔒 ${lock?.label ?? "잠금 장치"}: 비밀번호가 틀렸습니다` });
-        flash("비밀번호가 틀렸습니다 (행동 1회 사용)");
+        flash("비밀번호가 틀렸습니다 (행동 1회로 셌어요)");
       }
     } catch (e) {
       setError((e as Error).message);
@@ -317,6 +316,47 @@ export function PlayScreen({
     </div>
   );
 
+  // 모바일: 장소·용의자를 선택 상자로 한 줄에. 고른 쪽이 지금 대화 상대다 (조사 중이면 장소, 심문 중이면 용의자)
+  const pickClass = (active: boolean) =>
+    `min-w-0 flex-1 rounded-lg border bg-white py-2 pl-2.5 text-sm outline-none focus:outline-none dark:bg-zinc-900 ${active ? "border-red-500 font-medium text-red-700 dark:text-red-300" : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"}`;
+  const mobilePicker = (
+    <div className="flex items-center gap-1.5">
+      <button type="button" onClick={() => setShowStory(true)} aria-label="사건 개요 보기" title="사건 개요" className="shrink-0 rounded-lg border border-zinc-300 bg-white px-2.5 py-2 text-sm outline-none dark:border-zinc-700 dark:bg-zinc-900">
+        📁
+      </button>
+      <select
+        aria-label="장소"
+        value={target === "narrator" ? (state.currentLocationId ?? "") : ""}
+        onChange={(e) => e.target.value && move(e.target.value)}
+        className={pickClass(target === "narrator")}
+      >
+        {target !== "narrator" && <option value="">📍 장소 조사</option>}
+        {data.locations.map((l) => (
+          <option key={l.id} value={l.id}>
+            📍 {l.name}
+          </option>
+        ))}
+      </select>
+      <select
+        aria-label="용의자"
+        value={suspect?.id ?? ""}
+        onChange={(e) => {
+          if (!e.target.value) return;
+          setTarget(e.target.value);
+          setMobileTab("play");
+        }}
+        className={pickClass(!!suspect)}
+      >
+        {!suspect && <option value="">🗣 용의자 심문</option>}
+        {data.suspects.map((s) => (
+          <option key={s.id} value={s.id}>
+            🗣 {s.name}
+          </option>
+        ))}
+      </select>
+    </div>
+  );
+
   // ── 메모: 자동 저장하지 않고 임시저장 버튼으로 저장. 저장 안 한 채 나가려 하면 붙잡는다 ──
   const notesDirty = notes !== savedNotes;
 
@@ -376,11 +416,33 @@ export function PlayScreen({
     };
   }, [notesDirty]);
 
+  // 추리 서술 초안도 이 브라우저에 백업한다. 새로고침해도 제출 창을 다시 열면 이어서 쓸 수 있게
+  const narrativeKey = `nvel:narrative:${state.sessionId}`;
+  function changeNarrative(v: string) {
+    setNarrative(v);
+    try {
+      if (v.trim()) localStorage.setItem(narrativeKey, v);
+      else localStorage.removeItem(narrativeKey);
+    } catch {}
+  }
+  function openAccuse() {
+    if (!narrative) {
+      try {
+        const saved = localStorage.getItem(narrativeKey);
+        if (saved) setNarrative(saved);
+      } catch {}
+    }
+    setAccusing(true);
+  }
+
   // 사건을 끝낼 때(추리 제출·포기)는 따로 묻지 않고 메모를 저장해 둔다
   async function finish(path: "giveup" | null) {
     if (notesDirty) await saveNotes();
     try {
       if (path) await post(path);
+      try {
+        localStorage.removeItem(narrativeKey);
+      } catch {}
       router.push(`/play/${state.sessionId}/result`);
     } catch (e) {
       setError((e as Error).message);
@@ -401,10 +463,12 @@ export function PlayScreen({
     />
   );
 
+  // 수사 화면 전체를 화면 높이(상단 바 57px 제외)에 고정한다. 대화가 길어져도 페이지가 아니라 대화창 안에서 스크롤되고,
+  // 그 아래 추리 제출·포기 버튼은 늘 화면 안에 남는다. (flex-1 을 같이 걸면 높이 지정이 무시되고 내용만큼 늘어나므로 flex-none)
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-3 py-3 sm:px-4 lg:h-[calc(100vh-57px)] lg:flex-row lg:gap-4">
+    <div className="mx-auto flex h-[calc(100dvh-57px)] w-full max-w-7xl flex-none flex-col px-3 py-3 sm:px-4 lg:flex-row lg:gap-4">
       {/* 상단 정보 (모바일) */}
-      <div className="mb-2 flex flex-wrap items-center justify-between gap-2 lg:hidden">
+      <div className="mb-2 flex shrink-0 flex-wrap items-center justify-between gap-2 lg:hidden">
         <div className="flex rounded-lg bg-zinc-100 p-1 text-sm dark:bg-zinc-800">
           {(["play", "notebook"] as const).map((t) => (
             <button key={t} onClick={() => setMobileTab(t)} className={`rounded-md px-3 py-1 ${mobileTab === t ? "bg-white shadow-sm dark:bg-zinc-900" : "text-zinc-500"}`}>
@@ -416,11 +480,13 @@ export function PlayScreen({
         {badges}
       </div>
 
-      <aside className={`shrink-0 lg:block lg:w-52 lg:overflow-y-auto ${mobileTab === "play" ? "mb-3" : "hidden"}`}>{sidebar}</aside>
+      {/* PC: 사건 개요·장소·용의자 목록 / 모바일: 대화창을 넓게 쓰도록 한 줄짜리 선택 상자 */}
+      <aside className="hidden shrink-0 lg:block lg:w-52 lg:overflow-y-auto">{sidebar}</aside>
+      {mobileTab === "play" && <div className="mb-2 shrink-0 lg:hidden">{mobilePicker}</div>}
 
       {/* 대화 + 그 아래 사건을 끝내는 버튼 (수첩과 따로) */}
-      <div className={`flex min-w-0 flex-1 flex-col gap-3 lg:min-h-0 ${mobileTab === "play" ? "" : "hidden lg:flex"}`}>
-        <section className="flex h-[calc(100dvh-11rem)] min-h-[420px] min-w-0 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white lg:h-auto lg:min-h-0 lg:flex-1 dark:border-zinc-800 dark:bg-zinc-900">
+      <div className={`flex min-h-0 min-w-0 flex-1 flex-col gap-3 ${mobileTab === "play" ? "" : "hidden lg:flex"}`}>
+        <section className="flex min-h-0 min-w-0 flex-1 flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
           <div className="flex items-center justify-between gap-2 border-b border-zinc-200 px-4 py-3 dark:border-zinc-800">
             <div className="min-w-0">{header}</div>
             <div className="hidden shrink-0 lg:block">{badges}</div>
@@ -448,7 +514,7 @@ export function PlayScreen({
           {target === "narrator" &&
             state.locks
               .filter((l) => l.locationId === state.currentLocationId)
-              .map((l) => <LockInput key={l.clueId} label={l.label} disabled={busy || outOfActions} onSubmit={(code) => unlock(l.clueId, code)} />)}
+              .map((l) => <LockInput key={l.clueId} label={l.label} disabled={busy} onSubmit={(code) => unlock(l.clueId, code)} />)}
 
           {error && <p className="border-t border-red-200 bg-red-50 px-4 py-2 text-sm text-red-600 dark:border-red-900 dark:bg-red-950/40">{error}</p>}
           {noCredits && (
@@ -464,7 +530,7 @@ export function PlayScreen({
           )}
 
           {/* 추천 행동: 내 말풍선처럼 오른쪽에 띄우고, 누르면 바로 보낸다. 접어 둘 수 있다. 직접 입력도 그대로 가능 (대본 사건은 선택지로만) */}
-          {!outOfActions && !noCredits && (suggestions.length > 0 || data.scripted) && (
+          {!noCredits && (suggestions.length > 0 || data.scripted) && (
             <div className="border-t border-zinc-200 px-3 py-2 dark:border-zinc-800">
               <button
                 type="button"
@@ -513,7 +579,7 @@ export function PlayScreen({
                   <button
                     type="button"
                     onClick={() => setPresenting((v) => !v)}
-                    disabled={busy || outOfActions || noCredits || !state.foundClues.length}
+                    disabled={busy || noCredits || !state.foundClues.length}
                     className="rounded-lg border border-zinc-300 px-3 py-2.5 text-sm font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
                   >
                     증거 제시
@@ -553,11 +619,11 @@ export function PlayScreen({
                     }}
                     rows={1}
                     maxLength={1000}
-                    disabled={busy || outOfActions || noCredits}
-                    placeholder={outOfActions ? "행동 횟수를 모두 썼습니다. 추리를 제출하세요" : suspect ? `${suspect.name}에게 질문하기` : "무엇을 조사할까요?"}
+                    disabled={busy || noCredits}
+                    placeholder={suspect ? `${suspect.name}에게 질문하기` : "무엇을 조사할까요?"}
                     className="max-h-32 min-h-[42px] min-w-0 flex-1 resize-none rounded-lg border border-zinc-300 bg-white px-3 py-2.5 text-sm outline-none focus:border-red-500 focus:ring-2 focus:ring-red-500/20 disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-950"
                   />
-                  <button type="submit" disabled={busy || outOfActions || noCredits || !input.trim()} className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
+                  <button type="submit" disabled={busy || noCredits || !input.trim()} className="rounded-lg bg-red-600 px-4 py-2.5 text-sm font-semibold text-white hover:bg-red-700 disabled:opacity-50">
                     {busy ? "…" : "보내기"}
                   </button>
                 </>
@@ -567,7 +633,7 @@ export function PlayScreen({
         </section>
 
         <div className="shrink-0">
-          <button onClick={() => setAccusing(true)} className="w-full rounded-xl bg-red-600 py-3 font-semibold text-white shadow-sm hover:bg-red-700">
+          <button onClick={openAccuse} className="w-full rounded-xl bg-red-600 py-3 font-semibold text-white shadow-sm hover:bg-red-700">
             ⚖️ 추리 제출
           </button>
           <button onClick={() => setConfirmGiveUp(true)} className="mx-auto mt-3 block px-3 py-1 text-center text-xs text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300">
@@ -576,11 +642,11 @@ export function PlayScreen({
         </div>
       </div>
 
-      <aside className={`shrink-0 lg:block lg:w-80 lg:overflow-y-auto ${mobileTab === "notebook" ? "" : "hidden"}`}>{notebook}</aside>
+      <aside className={`min-h-0 flex-1 overflow-y-auto lg:block lg:w-80 lg:flex-none ${mobileTab === "notebook" ? "" : "hidden"}`}>{notebook}</aside>
 
       {openClue && <ClueModal clue={openClue} onClose={() => setOpenClue(null)} />}
       {showStory && <StoryModal data={data} onClose={() => setShowStory(false)} />}
-      {accusing && <AccuseModal data={data} state={state} notes={notes} narrative={narrative} onNarrative={setNarrative} onClose={() => setAccusing(false)} onDone={() => finish(null)} />}
+      {accusing && <AccuseModal data={data} state={state} notes={notes} narrative={narrative} onNarrative={changeNarrative} onClose={() => setAccusing(false)} onDone={() => finish(null)} />}
       {confirmGiveUp && (
         <Modal title="수사 포기" onClose={() => setConfirmGiveUp(false)}>
           <p className="text-sm leading-relaxed">수사를 포기하면 사건은 미제로 남고 진상이 공개돼요. 나중에 다시 도전할 수 있어요.</p>
@@ -649,10 +715,25 @@ function ModelPicker({ models, value, disabled, onChange }: { models: ModelOptio
   );
 }
 
-function ActionsBadge({ state }: { state: PublicState }) {
-  if (state.actionsLeft === null) return <span className="text-xs text-zinc-400">행동 {state.actionsUsed}회</span>;
-  const low = state.actionsLeft <= 10;
-  return <span title="조사·질문·증거 제시 1번에 1회씩 줄어요. 장소 이동과 힌트는 횟수를 쓰지 않아요. 다 쓰면 추리를 제출해야 해요." className={`rounded-full px-2.5 py-1 text-xs font-medium ${low ? "bg-red-100 text-red-700 dark:bg-red-950 dark:text-red-300" : "bg-zinc-100 text-zinc-600 dark:bg-zinc-800 dark:text-zinc-300"}`}>남은 행동 {state.actionsLeft}</span>;
+/** 쓴 행동 수. 목표 행동 수가 있으면 함께 보여 주고, 목표 안이면 초록·넘으면 주황 (막지는 않는다) */
+function ActionsBadge({ used, target }: { used: number; target: number | null }) {
+  const tip = "조사·질문·증거 제시 1번이 행동 1회예요 (비밀번호를 틀려도 1회). 장소 이동, 메모, 힌트, 추리 제출은 세지 않아요.";
+  if (!target) {
+    return (
+      <span title={tip} className="text-xs text-zinc-400">
+        행동 {used}회
+      </span>
+    );
+  }
+  const over = used > target;
+  return (
+    <span
+      title={`${tip} 범인을 맞히고 목표(${target}회) 안에 풀면 효율 보너스 +${POINTS.efficiency}점, ${Math.floor(target * EFFICIENCY_HALF_RATIO)}회 안이면 +${POINTS.efficiency / 2}점. 행동 수에 제한은 없어요.`}
+      className={`rounded-full px-2.5 py-1 text-xs font-medium tabular-nums ${over ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"}`}
+    >
+      🎯 행동 {used} / 목표 {target}
+    </span>
+  );
 }
 
 /**
@@ -803,7 +884,7 @@ function LockInput({ label, disabled, onSubmit }: { label: string; disabled: boo
       <button type="submit" disabled={disabled || !code.trim()} className="rounded-md bg-zinc-800 px-3 py-1 text-sm text-white disabled:opacity-50 dark:bg-zinc-200 dark:text-zinc-900">
         열기
       </button>
-      <span className="text-xs text-zinc-400">틀리면 행동 1회</span>
+      <span className="text-xs text-zinc-400">틀리면 행동 1회로 세요</span>
     </form>
   );
 }
@@ -1017,6 +1098,7 @@ function AccuseModal({
       {/* 채점 기준 (rules.ts 의 값 그대로) */}
       <p className="mb-5 rounded-lg bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400">
         📊 범인 {POINTS.culprit}점 · 질문 {POINTS.quiz}점 · 결정적 증거 {POINTS.evidence}점 · 추리 서술 {POINTS.narrative}점 · 힌트 1개당 -{HINT_PENALTY}점
+        {data.targetActions && ` · 목표 행동(${data.targetActions}회) 안에 풀면 효율 보너스 +${POINTS.efficiency}점`}
         <br />
         범인을 맞히고 {SOLVED_SCORE}점 이상이면 해결, 범인을 틀리면 나머지를 다 맞혀도 실패예요.
       </p>

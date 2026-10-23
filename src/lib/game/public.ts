@@ -1,7 +1,7 @@
 import type { GuideStep } from "@/db/schema";
 import type { PlayMessage, PlaySession } from "@/types/db";
 import type { FullCase } from "./load";
-import { actionsLeft, MAX_HINTS } from "./rules";
+import { MAX_HINTS } from "./rules";
 
 /*
  * 화면으로 보내도 되는 값만 골라낸다.
@@ -23,7 +23,6 @@ export interface PublicState {
   model: string | null;
   currentLocationId: string | null;
   actionsUsed: number;
-  actionsLeft: number | null;
   hintsUsed: number;
   hints: string[]; // 이미 공개한 힌트만
   hintsTotal: number;
@@ -44,7 +43,7 @@ export interface PublicCase {
   briefing: string;
   introHtml: string;
   victim: string;
-  maxActions: number | null;
+  targetActions: number | null; // 목표 행동 수 (보너스 기준, 제한 아님)
   isOfficial: boolean;
   locations: { id: string; name: string; description: string }[];
   suspects: { id: string; name: string; age: number | null; role: string; profile: string; portrait: string | null }[];
@@ -68,7 +67,7 @@ export function publicCase(full: FullCase): PublicCase {
     briefing: c.briefing,
     introHtml: c.introHtml,
     victim: c.victim,
-    maxActions: c.maxActions,
+    targetActions: c.targetActions,
     isOfficial: c.isOfficial,
     locations: full.locations.map(({ id, name, description }) => ({ id, name, description })),
     suspects: full.suspects.map(({ id, name, age, role, profile, portrait }) => ({ id, name, age, role, profile, portrait })),
@@ -103,7 +102,6 @@ export function publicState(full: FullCase, s: PlaySession): PublicState {
     model: s.model,
     currentLocationId: s.currentLocationId,
     actionsUsed: s.actionsUsed,
-    actionsLeft: actionsLeft(full, s),
     hintsUsed: s.hintsUsed,
     hints: full.case.hints.slice(0, s.hintsUsed),
     hintsTotal: Math.min(full.case.hints.length, MAX_HINTS), // 예전에 4개 넘게 넣은 사건도 4개까지만
