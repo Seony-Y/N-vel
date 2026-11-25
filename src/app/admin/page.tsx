@@ -42,7 +42,7 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
       <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-6">
         <StatTile label="가입자" value={o.users.toLocaleString()} sub={`기간 내 플레이 ${o.activeUsers}명`} />
         <StatTile label="플레이" value={o.started.toLocaleString()} sub={`제출 ${o.finished} · 포기 ${o.gaveUp}`} />
-        <StatTile label="해결률" value={pct(o.solved, o.finished)} sub={`해결 ${o.solved} / 제출 ${o.finished}`} />
+        <StatTile label="해결률" value={pct(o.solved, o.finished)} sub={`첫 도전: 해결 ${o.solved} / 제출 ${o.finished}`} />
         <StatTile label="차감 크레딧" value={o.credits.toLocaleString()} sub={`행동 ${o.actions.toLocaleString()}회`} />
         <StatTile label="API 원가 (기간 내 사용)" value={formatUsd(o.costMicros)} sub={`호출 ${o.apiCalls.toLocaleString()}회`} />
         <StatTile label="오류" value={String(o.events.error ?? 0)} sub={`거절·규칙 위반·잘림 ${issues}`} alert={(o.events.error ?? 0) > 0} />

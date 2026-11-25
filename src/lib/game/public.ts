@@ -1,7 +1,7 @@
 import type { GuideStep } from "@/db/schema";
 import type { PlayMessage, PlaySession } from "@/types/db";
 import type { FullCase } from "./load";
-import { MAX_HINTS } from "./rules";
+import { MAX_HINTS, openableLocks } from "./rules";
 
 /*
  * 화면으로 보내도 되는 값만 골라낸다.
@@ -80,7 +80,6 @@ export function publicCase(full: FullCase): PublicCase {
 }
 
 export function publicState(full: FullCase, s: PlaySession): PublicState {
-  const found = new Set(s.foundClueIds);
   const locName = new Map(full.locations.map((l) => [l.id, l.name]));
   const susName = new Map(full.suspects.map((x) => [x.id, x.name]));
   // 찾은 순서대로
@@ -106,9 +105,7 @@ export function publicState(full: FullCase, s: PlaySession): PublicState {
     hints: full.case.hints.slice(0, s.hintsUsed),
     hintsTotal: Math.min(full.case.hints.length, MAX_HINTS), // 예전에 4개 넘게 넣은 사건도 4개까지만
     foundClues,
-    locks: full.clues
-      .filter((c) => c.passcode && c.locationId && !found.has(c.id))
-      .map((c) => ({ clueId: c.id, label: c.lockLabel ?? "잠긴 물건", locationId: c.locationId! })),
+    locks: openableLocks(full, s).map((c) => ({ clueId: c.id, label: c.lockLabel ?? "잠긴 물건", locationId: c.locationId! })),
     notes: s.notes,
   };
 }

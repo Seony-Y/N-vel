@@ -8,9 +8,10 @@ import type { FullCase } from "./load";
 export const HINT_PENALTY = 5;
 export const MAX_HINTS = 4; // 사건 하나에 넣을 수 있는 힌트 수. 뒤로 갈수록 결정적인 힌트
 export const MAX_EVIDENCE = 3;
+export const MAX_CLUES_PER_TURN = 2; // 행동 한 번에 얻을 수 있는 단서 수 (한마디로 여러 방을 쓸어 담지 못하게)
 
 /** 선행 단서를 모두 찾았는지 */
-function prerequisitesMet(clue: Clue, found: Set<string>) {
+export function prerequisitesMet(clue: Clue, found: Set<string>) {
   return clue.requires.every((id) => found.has(id));
 }
 
@@ -43,6 +44,43 @@ export function validateRequested(codes: string[], allowed: Clue[]): Clue[] {
   return [...new Set(codes)].map((code) => byCode.get(code)).filter((c): c is Clue => !!c);
 }
 
+/**
+ * 행동 한 번에 인정할 단서를 고른다. 장소 단서는 한 장소의 것만: 이동한 곳 → 지금 있는 곳 → 처음 말한 단서의 장소 순으로 고른다.
+ * 심문(where 없음)은 개수만 제한한다
+ */
+export function limitPerTurn(clues: Clue[], where?: { go: string | null; current: string | null }): Clue[] {
+  if (!clues.length) return [];
+  const at = where && ([where.go, where.current].find((id) => id && clues.some((c) => c.locationId === id)) ?? clues[0].locationId);
+  return clues.filter((c) => !where || c.locationId === at).slice(0, MAX_CLUES_PER_TURN);
+}
+
+/**
+ * AI 가 단서 내용을 이미 말했는데 태그를 빠뜨린 것. 단서 설명의 글자쌍이 응답에 대부분 나올 때만 인정한다
+ * (플레이어는 이미 읽었는데 수첩에 없어서 증거로 낼 수 없는 일을 막는다)
+ */
+const SPOKEN_RATIO = 0.6;
+const SPOKEN_MIN = 12; // 이보다 짧은 설명은 우연히 겹칠 수 있어 보지 않는다
+export function spokenWithoutTag(text: string, candidates: Clue[]): Clue[] {
+  const norm = (s: string) => s.replace(/[\s\p{P}\p{S}]+/gu, "");
+  const pairs = (s: string) => new Set(Array.from({ length: Math.max(0, s.length - 1) }, (_, i) => s.slice(i, i + 2)));
+  const said = pairs(norm(text));
+  return candidates.filter((c) => {
+    const want = [...pairs(norm(c.description.replace(/^[^:\n]{1,20}:\s*/, "")))]; // 증언 앞의 "이름:" 은 뺀다
+    return want.length >= SPOKEN_MIN && want.filter((p) => said.has(p)).length / want.length >= SPOKEN_RATIO;
+  });
+}
+
+/** 아직 안 열린 잠금 장치 (선행 단서를 찾기 전에는 보이지도, 열리지도 않는다) */
+export function openableLocks(full: FullCase, session: PlaySession) {
+  const found = new Set(session.foundClueIds);
+  return full.clues.filter((c) => c.passcode && c.locationId && !found.has(c.id) && prerequisitesMet(c, found));
+}
+
+/** 플레이어가 글로 흉내 낸 증거 제시 표시를 바꿔 둔다. 진짜 제시는 서버가 붙인다 */
+export function stripFakePresent(message: string) {
+  return message.replace(/[[［【]\s*증거\s*제시/g, "(증거 제시");
+}
+
 /** 증거를 제시했을 때 새로 무너지는 지점 */
 export function breakpointFor(full: FullCase, session: PlaySession, suspectId: string, clueId: string) {
   const bp = full.breakpoints.find((b) => b.suspectId === suspectId && b.clueId === clueId);
@@ -53,11 +91,11 @@ export function breakpointFor(full: FullCase, session: PlaySession, suspectId: s
 
 /*
  * 정답 기준 (한곳에서 관리)
- *   해결      = 범인을 맞히고 점수가 SOLVED_SCORE 이상
+ *   해결      = 범인을 맞히고 효율 보너스를 뺀 점수가 SOLVED_SCORE 이상
  *   부분 해결 = 범인은 맞혔지만 점수가 모자람 (동기·수법·증거 중 틀린 게 많음)
  *   실패      = 범인을 틀림 (나머지를 다 맞혀도 실패)
  * 점수 = 범인 40 + 객관식 20(문항 수로 나눔) + 결정적 증거 15(맞힌 개수 비율) + 추리 서술 25(채점 포인트 비율) - 힌트 1개당 HINT_PENALTY(5)
- *        + 효율 보너스: 범인을 맞히고 목표 행동 수 안에 풀면 +10, 1.5배 안이면 +5 (최대 110점)
+ *        + 효율 보너스: 범인을 맞히고 목표 행동 수 안에 풀면 +10, 1.5배 안이면 +5 (최대 110점. 보너스는 표시 점수에만 더하고 해결 판정에는 쓰지 않는다)
  *   서술 없이 나머지를 다 맞히면 75점이라, 해결하려면 사건의 전말을 어느 정도 써야 한다
  * 서술 채점 도입 전에 제출한 기록(narrative 없음)은 예전 배점(LEGACY_POINTS)으로 계산한다.
  * 관리자 통계의 "성공"은 '해결'만 센다.
@@ -213,7 +251,8 @@ export function grade(full: FullCase, session: PlaySession, a: Accusation): Grad
   const raw = items.reduce((sum, it) => sum + it.points, 0) + (c.quiz.length ? 0 : P.quiz);
   const hintPenalty = session.hintsUsed * (legacy ? LEGACY_HINT_PENALTY : HINT_PENALTY);
   const score = Math.max(0, Math.round(raw - hintPenalty));
-  const ending = culpritCorrect && score >= SOLVED_SCORE ? "correct" : culpritCorrect ? "partial" : "wrong";
+  const bonus = items.find((it) => it.kind === "efficiency")?.points ?? 0;
+  const ending = culpritCorrect && Math.round(raw - bonus - hintPenalty) >= SOLVED_SCORE ? "correct" : culpritCorrect ? "partial" : "wrong";
 
   // 일치율: 서술은 한 칸으로 치고 채점 비율만큼 맞힌 것으로 본다
   const slots = 1 + c.quiz.length + evidenceNeeded + (legacy ? 0 : 1);

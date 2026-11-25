@@ -1161,7 +1161,7 @@ function AccuseModal({
         📊 범인 {POINTS.culprit}점 · 질문 {POINTS.quiz}점 · 결정적 증거 {POINTS.evidence}점 · 추리 서술 {POINTS.narrative}점 · 힌트 1개당 -{HINT_PENALTY}점
         {data.targetActions && ` · 목표 행동(${data.targetActions}회) 안에 풀면 효율 보너스 +${POINTS.efficiency}점`}
         <br />
-        범인을 맞히고 {SOLVED_SCORE}점 이상이면 해결, 범인을 틀리면 나머지를 다 맞혀도 실패예요.
+        범인을 맞히고 {data.targetActions ? "보너스를 뺀 점수가 " : ""}{SOLVED_SCORE}점 이상이면 해결, 범인을 틀리면 나머지를 다 맞혀도 실패예요.
       </p>
 
       <fieldset className="mb-5">

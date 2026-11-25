@@ -33,7 +33,7 @@ export async function logUsage(params: {
 
 /** 오류·거절·규칙 위반 요청을 기록한다. 기록 실패가 본 기능을 막지 않도록 예외를 삼킨다 */
 export async function logEvent(e: {
-  type: "error" | "refusal" | "rejected_clue" | "truncated";
+  type: "error" | "refusal" | "rejected_clue" | "recovered_clue" | "truncated";
   where: string;
   message: string;
   userId?: string | null;

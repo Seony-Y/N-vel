@@ -35,8 +35,9 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
   const [{ profile, sessions, reviews }, events, creditRows] = await Promise.all([userSessions(id), recentEvents(50, id), ledger(id, 50)]);
   if (!profile) notFound();
 
-  const finished = sessions.filter((s) => s.status === "finished" && s.ending !== "gaveup");
-  const gaveUp = sessions.filter((s) => s.ending === "gaveup").length;
+  // 제출·해결·포기는 첫 도전만 센다
+  const finished = sessions.filter((s) => s.status === "finished" && s.ending !== "gaveup" && !s.isRetry);
+  const gaveUp = sessions.filter((s) => s.ending === "gaveup" && !s.isRetry).length;
   const solved = finished.filter((s) => s.ending === "correct").length;
   const credits = sessions.reduce((n, s) => n + s.credits, 0);
   const micros = sessions.reduce((n, s) => n + s.micros, 0) + reviews.micros;
@@ -77,7 +78,7 @@ async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["
                 </Link>
               </Td>
               <Td>{modelLabel(s.model)}</Td>
-              <Td>{s.status === "playing" ? "▶ 진행 중" : endingText(s.ending)}</Td>
+              <Td>{s.status === "playing" ? "▶ 진행 중" : `${s.isRetry ? "🔁 " : ""}${endingText(s.ending)}`}</Td>
               <Td num>{s.score ?? "-"}</Td>
               <Td num>{s.matchRate != null ? `${s.matchRate}%` : "-"}</Td>
               <Td num>{s.actions}</Td>

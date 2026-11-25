@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { publicState } from "@/lib/game/public";
+import { openableLocks } from "@/lib/game/rules";
 import { addMessages, addProgress, openSession } from "@/lib/game/session";
 
 const Body = z.object({ clueId: z.uuid(), code: z.string().trim().min(1).max(30) });
@@ -21,6 +22,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/u
   if (!clue) return Response.json({ error: "없는 잠금 장치입니다" }, { status: 400 });
   if (clue.locationId !== session.currentLocationId) return Response.json({ error: "그 장소에 가야 열 수 있습니다" }, { status: 400 });
   if (session.foundClueIds.includes(clue.id)) return Response.json({ ok: true, state: publicState(full, session) });
+  if (!openableLocks(full, session).includes(clue)) return Response.json({ error: "없는 잠금 장치입니다" }, { status: 400 });
 
   const label = clue.lockLabel ?? "잠금 장치";
   if (parsed.data.code !== clue.passcode) {

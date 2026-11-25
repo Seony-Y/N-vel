@@ -129,7 +129,7 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
             </ul>
           </section>
 
-          {finished.some((s) => s.ending === "correct") && <p className="text-sm font-medium text-emerald-600">✅ 해결한 사건이에요. 다시 도전해서 더 높은 점수를 노려 보세요.</p>}
+          {finished.some((s) => s.ending === "correct") && <p className="text-sm font-medium text-emerald-600">✅ 해결한 사건이에요. 다시 도전할 수 있지만 재도전 기록으로 남아요.</p>}
           {/* 대본 사건(프롤로그)은 AI 를 쓰지 않으므로 모델·크레딧 안내 대신 무료 표시 */}
           {full.case.isOfficial && full.case.script.length > 0 && <p className="text-sm font-medium text-emerald-600">🎁 무료 사건이에요. 정해진 선택지로 진행하고 크레딧을 쓰지 않아요.</p>}
           <CaseActions
@@ -151,6 +151,7 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
                     <Link href={`/play/${s.id}/result`} className="flex items-center justify-between gap-3 whitespace-nowrap rounded-lg px-2 py-1.5 hover:bg-zinc-100 dark:hover:bg-zinc-800">
                       <span className="text-zinc-500">{s.updatedAt.toLocaleDateString("ko-KR")}</span>
                       <span>
+                        {s.isRetry && <span className="mr-1 text-zinc-400">🔁 재도전</span>}
                         {endingText(s.ending)}
                         {s.ending !== "gaveup" && ` · ${s.score}점`}
                         <span className="ml-2 text-zinc-400">

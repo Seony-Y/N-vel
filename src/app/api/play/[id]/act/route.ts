@@ -8,7 +8,7 @@ import { changeCredits, getBalance } from "@/lib/credits";
 import { loadThread } from "@/lib/game/load";
 import { extractClueCodes, extractMoves, extractSuggestions, narratorPrompt, suspectPrompt, visibleText } from "@/lib/game/prompts";
 import { publicState } from "@/lib/game/public";
-import { breakpointFor, discoverable, tellableBy, validateRequested } from "@/lib/game/rules";
+import { breakpointFor, discoverable, limitPerTurn, spokenWithoutTag, stripFakePresent, tellableBy, validateRequested } from "@/lib/game/rules";
 import { addMessages, addProgress, openSession } from "@/lib/game/session";
 import { overDailyCost } from "@/lib/quota";
 import type { FullCase } from "@/lib/game/load";
@@ -67,13 +67,16 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
   }
 
   // ── 증거 제시: 무너지는 지점은 AI 가 아니라 서버가 정한다 ──
-  let userText = message;
+  const spoken = stripFakePresent(message);
+  let userText = spoken;
+  let presented: Clue | null = null;
   let newlyBroken: string | null = null;
   let brokenId: string | null = null;
   const revealed: Clue[] = [];
   if (presentClueId) {
     const clue = full.clues.find((c) => c.id === presentClueId)!;
-    userText = `[증거 제시: ${clue.name}] ${clue.description}${message ? `\n${message}` : ""}`;
+    presented = clue;
+    userText = `[증거 제시: ${clue.name}] ${clue.description}${spoken ? `\n${spoken}` : ""}`;
 
     const bp = breakpointFor(full, session, suspect!.id, presentClueId);
     if (bp) {
@@ -90,7 +93,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
 
   const { system, messages } = isNarrator
     ? narratorPrompt(full, session, history, userText, candidates)
-    : suspectPrompt(full, suspect!, session, history, userText, { tellable: candidates, newlyBroken });
+    : suspectPrompt(full, suspect!, session, history, userText, { tellable: candidates, newlyBroken, presented });
 
   // 행동 횟수·내 메시지 저장은 AI 응답을 기다리지 않고 함께 진행한다
   const counting = addProgress(id, { actions: 1, credits: model.credits });
@@ -145,8 +148,14 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
           if (finalText.length > sent) send(finalText.slice(sent));
           // AI 가 요청한 단서 중 규칙상 허용되는 것만 인정
           const requested = extractClueCodes(raw);
-          const accepted = validateRequested(requested, candidates);
+          const allowed = validateRequested(requested, candidates);
+          // 잘리거나 태그를 빠뜨려도, 내용을 이미 말한 단서는 인정한다
+          const recovered = spokenWithoutTag(finalText, candidates.filter((c) => !allowed.includes(c) && !revealed.includes(c)));
+          const go = full.locations.find((l) => l.code === extractMoves(raw).go)?.id ?? null;
+          const accepted = limitPerTurn([...allowed, ...recovered], isNarrator ? { go, current: session.currentLocationId } : undefined);
           found = [...found, ...accepted];
+          const saved = recovered.filter((c) => accepted.includes(c));
+          if (saved.length) await logEvent({ type: "recovered_clue", where, message: `태그가 빠진 단서를 인정: ${saved.map((c) => c.code).join(", ")}`, ...ctxLog, detail: { thread } });
           const rejected = requested.filter((code) => !accepted.some((c) => c.code === code));
           if (rejected.length) {
             await logEvent({ type: "rejected_clue", where, message: `허용되지 않은 단서 요청: ${rejected.join(", ")}`, ...ctxLog, detail: { thread, rejected, allowed: candidates.map((c) => c.code) } });

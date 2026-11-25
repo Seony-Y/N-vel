@@ -8,6 +8,7 @@ import { apiTopups, cases, eventLogs, playMessages, playSessions, usageLogs, use
  * 원가   = 실제 API 비용 (usage_logs.cost_micros, 백만분의 1달러). AI 검수 비용도 포함
  * 성공   = 엔딩이 '해결'(correct) 인 플레이
  * 제출   = 추리를 낸 플레이 (해결·부분·미제). 포기(gaveup)는 따로 센다
+ * 제출·해결·포기·평균 점수는 첫 도전만 센다 (진상을 본 뒤의 재도전 is_retry 는 제외)
  */
 
 const since = (days: number) => new Date(Date.now() - days * 86400_000);
@@ -19,9 +20,9 @@ export async function overview(days: number) {
     db
       .select({
         started: sql<number>`count(*)`,
-        finished: sql<number>`count(*) filter (where ${playSessions.ending} in ('correct', 'partial', 'wrong'))`,
-        solved: sql<number>`count(*) filter (where ${playSessions.ending} = 'correct')`,
-        gaveUp: sql<number>`count(*) filter (where ${playSessions.ending} = 'gaveup')`,
+        finished: sql<number>`count(*) filter (where ${playSessions.ending} in ('correct', 'partial', 'wrong') and not ${playSessions.isRetry})`,
+        solved: sql<number>`count(*) filter (where ${playSessions.ending} = 'correct' and not ${playSessions.isRetry})`,
+        gaveUp: sql<number>`count(*) filter (where ${playSessions.ending} = 'gaveup' and not ${playSessions.isRetry})`,
         credits: sql<number>`coalesce(sum(${playSessions.creditsUsed}), 0)`,
         actions: sql<number>`coalesce(sum(${playSessions.actionsUsed}), 0)`,
       })
@@ -50,7 +51,7 @@ export async function overview(days: number) {
     actions: int(s.actions),
     costMicros: int(cost.micros),
     apiCalls: int(cost.calls),
-    events: Object.fromEntries(events.map((e) => [e.type, int(e.n)])) as Partial<Record<"error" | "refusal" | "rejected_clue" | "truncated", number>>,
+    events: Object.fromEntries(events.map((e) => [e.type, int(e.n)])) as Partial<Record<"error" | "refusal" | "rejected_clue" | "recovered_clue" | "truncated", number>>,
   };
 }
 
@@ -61,8 +62,8 @@ export async function perUser(days: number) {
     .select({
       userId: playSessions.userId,
       started: sql<number>`count(*)`.as("started"),
-      finished: sql<number>`count(*) filter (where ${playSessions.ending} in ('correct', 'partial', 'wrong'))`.as("finished"),
-      solved: sql<number>`count(*) filter (where ${playSessions.ending} = 'correct')`.as("solved"),
+      finished: sql<number>`count(*) filter (where ${playSessions.ending} in ('correct', 'partial', 'wrong') and not ${playSessions.isRetry})`.as("finished"),
+      solved: sql<number>`count(*) filter (where ${playSessions.ending} = 'correct' and not ${playSessions.isRetry})`.as("solved"),
       credits: sql<number>`coalesce(sum(${playSessions.creditsUsed}), 0)`.as("credits_spent"),
     })
     .from(playSessions)
@@ -126,12 +127,12 @@ export async function perCase(days: number) {
       title: cases.title,
       isOfficial: cases.isOfficial,
       started: sql<number>`count(${playSessions.id})`,
-      finished: sql<number>`count(*) filter (where ${playSessions.ending} in ('correct', 'partial', 'wrong'))`,
-      solved: sql<number>`count(*) filter (where ${playSessions.ending} = 'correct')`,
-      gaveUp: sql<number>`count(*) filter (where ${playSessions.ending} = 'gaveup')`,
-      avgScore: sql<number>`round(avg(${playSessions.score}) filter (where ${playSessions.ending} <> 'gaveup'))`,
-      avgMatch: sql<number>`round(avg(${playSessions.matchRate}))`,
-      avgActions: sql<number>`round(avg(${playSessions.actionsUsed}) filter (where ${playSessions.ending} in ('correct', 'partial', 'wrong')))`,
+      finished: sql<number>`count(*) filter (where ${playSessions.ending} in ('correct', 'partial', 'wrong') and not ${playSessions.isRetry})`,
+      solved: sql<number>`count(*) filter (where ${playSessions.ending} = 'correct' and not ${playSessions.isRetry})`,
+      gaveUp: sql<number>`count(*) filter (where ${playSessions.ending} = 'gaveup' and not ${playSessions.isRetry})`,
+      avgScore: sql<number>`round(avg(${playSessions.score}) filter (where ${playSessions.ending} <> 'gaveup' and not ${playSessions.isRetry}))`,
+      avgMatch: sql<number>`round(avg(${playSessions.matchRate}) filter (where not ${playSessions.isRetry}))`,
+      avgActions: sql<number>`round(avg(${playSessions.actionsUsed}) filter (where ${playSessions.ending} in ('correct', 'partial', 'wrong') and not ${playSessions.isRetry}))`,
       credits: sql<number>`coalesce(sum(${playSessions.creditsUsed}), 0)`,
       micros: sql<number>`coalesce(sum(${costBySession.micros}), 0)`,
     })
@@ -186,6 +187,7 @@ export async function userSessions(userId: string) {
       model: playSessions.model,
       status: playSessions.status,
       ending: playSessions.ending,
+      isRetry: playSessions.isRetry,
       score: playSessions.score,
       matchRate: playSessions.matchRate,
       actions: playSessions.actionsUsed,

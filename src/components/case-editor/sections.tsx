@@ -405,7 +405,7 @@ export function TruthTab({ d, update }: Props) {
 export function EndingsTab({ d, update }: Props) {
   return (
     <>
-      <Section title="엔딩" description={`범인을 맞히고 ${SOLVED_SCORE}점 이상이면 정답, 범인만 맞히면 부분 정답, 틀리면 오답, 수사를 포기하면 포기 엔딩이에요`}>
+      <Section title="엔딩" description={`범인을 맞히고 (효율 보너스를 뺀 점수가) ${SOLVED_SCORE}점 이상이면 정답, 범인만 맞히면 부분 정답, 틀리면 오답, 수사를 포기하면 포기 엔딩이에요`}>
         <TextArea title="정답 엔딩" value={d.endingCorrect} onChange={(v) => update((x) => void (x.endingCorrect = v))} max={4000} rows={4} />
         <TextArea title="부분 정답 엔딩" value={d.endingPartial} onChange={(v) => update((x) => void (x.endingPartial = v))} max={4000} rows={3} />
         <TextArea title="오답 엔딩" value={d.endingWrong} onChange={(v) => update((x) => void (x.endingWrong = v))} max={4000} rows={3} />

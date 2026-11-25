@@ -233,6 +233,15 @@ export interface Accusation {
   graded?: import("@/lib/game/rules").Grade; // 제출할 때의 채점 결과 전체. 나중에 사건을 고쳐도 결과 화면이 바뀌지 않도록
 }
 
+/** 사건을 끝낸 시점의 진상 (결과 화면용) */
+export interface Reveal {
+  culprit: string;
+  truth: string;
+  endingText: string;
+  keyClues: { id: string; name: string; description: string }[];
+  clueTotal: number;
+}
+
 /** 서술형 추리 채점 결과. 채점 포인트마다 맞음(hit)·부분(partial)·빠짐(miss) */
 export interface NarrativeGrade {
   points: { point: string; weight: number; verdict: "hit" | "partial" | "miss"; comment: string }[];
@@ -264,6 +273,8 @@ export const playSessions = pgTable(
     score: integer("score"),
     matchRate: integer("match_rate"), // 추리와 정답의 일치율 0~100
     ending: text("ending", { enum: ["correct", "partial", "wrong", "gaveup"] }), // gaveup: 수사 포기 (추리 미제출)
+    isRetry: boolean("is_retry").notNull().default(false), // 이 사건의 진상을 이미 본 뒤(끝낸 적이 있는 뒤)에 끝낸 기록. 통계에서 뺀다
+    reveal: jsonb("reveal").$type<Reveal>(), // 끝낸 시점의 진상. 나중에 사건을 고쳐도 결과 화면이 채점 결과와 어긋나지 않도록
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
@@ -321,7 +332,7 @@ export const eventLogs = pgTable(
   "event_logs",
   {
     id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
-    type: text("type", { enum: ["error", "refusal", "rejected_clue", "truncated"] }).notNull(),
+    type: text("type", { enum: ["error", "refusal", "rejected_clue", "recovered_clue", "truncated"] }).notNull(),
     userId: text("user_id").references(() => user.id, { onDelete: "cascade" }),
     sessionId: uuid("session_id").references(() => playSessions.id, { onDelete: "set null" }),
     caseId: uuid("case_id").references(() => cases.id, { onDelete: "set null" }),

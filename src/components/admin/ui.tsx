@@ -67,6 +67,7 @@ export const EVENT_LABEL = {
   error: { icon: "⛔", label: "오류" },
   refusal: { icon: "🚫", label: "AI 거절" },
   rejected_clue: { icon: "🔁", label: "규칙 밖 단서 요청" },
+  recovered_clue: { icon: "🧷", label: "빠진 단서 태그 보완" },
   truncated: { icon: "✂️", label: "응답 잘림" },
 } as const;
 

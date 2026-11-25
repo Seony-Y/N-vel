@@ -116,7 +116,7 @@ function Group({ title, hint, items, favIds }: { title: string; hint: string; it
                   {c.progress.ongoingId
                     ? "수사 진행 중"
                     : last
-                      ? `최근 결과 ${endingText(last.ending)}${last.ending !== "gaveup" ? ` · ${last.score}점 · 일치율 ${last.matchRate ?? 0}%` : ""}`
+                      ? `최근 결과 ${last.isRetry ? "🔁 재도전 " : ""}${endingText(last.ending)}${last.ending !== "gaveup" ? ` · ${last.score}점 · 일치율 ${last.matchRate ?? 0}%` : ""}`
                       : "아직 수사하지 않았어요"}
                   {c.progress.attempts > 0 && <span className="text-zinc-400"> · 도전 {c.progress.attempts}회</span>}
                 </p>

@@ -76,7 +76,7 @@ export type Ending = "correct" | "partial" | "wrong" | "gaveup";
 export interface CaseProgress {
   caseId: string;
   ongoingId: string | null; // 진행 중인 수사 (이어서 수사하기)
-  lastFinished: { id: string; ending: Ending | null; score: number | null; matchRate: number | null; finishedAt: Date | null } | null; // 결과 보기
+  lastFinished: { id: string; ending: Ending | null; score: number | null; matchRate: number | null; isRetry: boolean; finishedAt: Date | null } | null; // 결과 보기
   solved: boolean; // 한 번이라도 해결했는지
   submitted: boolean; // 한 번이라도 추리를 제출해 끝냈는지 (포기 제외)
   attempts: number;
@@ -91,7 +91,7 @@ export async function myProgress(userId: string | null): Promise<Map<string, Cas
   const map = new Map<string, CaseProgress>();
   if (!userId) return map;
   const rows = await db
-    .select({ id: playSessions.id, caseId: playSessions.caseId, status: playSessions.status, ending: playSessions.ending, score: playSessions.score, matchRate: playSessions.matchRate, finishedAt: playSessions.finishedAt })
+    .select({ id: playSessions.id, caseId: playSessions.caseId, status: playSessions.status, ending: playSessions.ending, score: playSessions.score, matchRate: playSessions.matchRate, isRetry: playSessions.isRetry, finishedAt: playSessions.finishedAt })
     .from(playSessions)
     .where(eq(playSessions.userId, userId))
     .orderBy(desc(playSessions.updatedAt)); // 최근 것부터
@@ -99,7 +99,7 @@ export async function myProgress(userId: string | null): Promise<Map<string, Cas
     const p = map.get(r.caseId) ?? emptyProgress(r.caseId);
     p.attempts++;
     if (r.status === "playing") p.ongoingId ??= r.id;
-    else p.lastFinished ??= { id: r.id, ending: r.ending, score: r.score, matchRate: r.matchRate, finishedAt: r.finishedAt };
+    else p.lastFinished ??= { id: r.id, ending: r.ending, score: r.score, matchRate: r.matchRate, isRetry: r.isRetry, finishedAt: r.finishedAt };
     if (r.ending === "correct") p.solved = true;
     if (r.ending && r.ending !== "gaveup") p.submitted = true;
     map.set(r.caseId, p);
@@ -120,7 +120,7 @@ export async function myPlayedCases(userId: string) {
 /** 이 사건에서 내 플레이 기록 (최근 순) */
 export async function mySessionsFor(userId: string, caseId: string) {
   return db
-    .select({ id: playSessions.id, status: playSessions.status, score: playSessions.score, ending: playSessions.ending, updatedAt: playSessions.updatedAt })
+    .select({ id: playSessions.id, status: playSessions.status, score: playSessions.score, ending: playSessions.ending, isRetry: playSessions.isRetry, updatedAt: playSessions.updatedAt })
     .from(playSessions)
     .where(and(eq(playSessions.userId, userId), eq(playSessions.caseId, caseId)))
     .orderBy(desc(playSessions.updatedAt))

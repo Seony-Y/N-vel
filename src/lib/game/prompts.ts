@@ -2,6 +2,7 @@ import type Anthropic from "@anthropic-ai/sdk";
 import { getChatModel } from "@/lib/ai/models";
 import type { Clue, PlayMessage, PlaySession, Suspect } from "@/types/db";
 import type { FullCase } from "./load";
+import { MAX_CLUES_PER_TURN, openableLocks } from "./rules";
 
 /*
  * 나레이터(조사)와 용의자(심문) 프롬프트.
@@ -10,6 +11,9 @@ import type { FullCase } from "./load";
  * - 나레이터: 장소와 장소 단서는 알지만, 범인·진상·용의자의 비밀은 모른다.
  * - 용의자: 자기 자신의 정보와 자기가 줄 수 있는 증언만 안다. 다른 용의자의 비밀은 모른다.
  *   범인이 아닌 용의자의 프롬프트에는 진상이 아예 없으므로 실수로도 말할 수 없다.
+ *
+ * - 아직 열리지 않은 단서(잠금, 선행 단서, 무너지는 지점 뒤의 증언)의 내용은 프롬프트에 넣지 않는다.
+ *   열린 뒤에 매 턴 바뀌는 정보로 준다. 없는 내용은 AI 가 흘릴 수 없고, 고정 부분의 캐시도 깨지지 않는다
  *
  * 캐싱 순서 (src/lib/ai 와 같은 원칙)
  *   system[0]  규칙 + 사건 공개 정보 + 역할별 고정 정보   ← 캐시 지점 1
@@ -33,6 +37,7 @@ const NARRATOR_RULES = `당신은 추리 게임의 나레이터입니다. 플레
 - 플레이어의 행동이 어떤 단서의 "찾는 법"에 해당하면, 그 단서의 내용(무엇이 보이는지, 적힌 글귀나 눈에 띄는 점)을 구체적으로 묘사한 뒤 응답 맨 끝에 <clue>코드</clue> 를 붙이세요. 여러 개면 각각 붙입니다.
 - "이번 턴에 찾을 수 있는 단서"에 없는 단서는 묘사하지도, 태그를 붙이지도 마세요. 막연한 행동에는 주변 분위기만 묘사하고 더 구체적으로 살펴볼 곳을 은근히 암시하세요.
 - 플레이어는 현재 장소에 묶이지 않습니다. 다른 장소로 가거나 다른 장소의 물건을 구체적으로 지목하면, 그곳으로 이동해 살펴보는 장면으로 묘사하고 응답 맨 끝에 <go>장소코드</go> 를 붙이세요. 그 장소의 단서도 "찾는 법"에 맞으면 줄 수 있습니다.
+- 한 번의 행동에서는 한 장소만, 단서는 최대 ${MAX_CLUES_PER_TURN}개까지만 찾게 하세요. 플레이어가 여러 곳이나 "전부"를 한꺼번에 조사하려 하면 그중 한 곳만 묘사하고 나머지는 다음에 살피게 하세요.
 - 잠긴 물건(금고 등)은 잠겨 있다는 것만 묘사하고, 화면의 잠금 해제 칸에 비밀번호를 입력하라고 안내하세요. 비밀번호를 알려주지 마세요.
 - 당신은 범인이 누구인지 모릅니다. 추리하거나 누군가를 범인으로 암시하지 마세요.
 - 플레이어가 용의자에게 말을 걸거나 심문하려 하면, 그 인물을 마주하는 장면만 한 문장으로 묘사하고 응답 맨 끝에 <talk>용의자코드</talk> 를 붙이세요. 용의자의 대사는 지어내지 마세요 (심문 화면으로 넘어갑니다).
@@ -45,8 +50,9 @@ const SUSPECT_RULES = `당신은 추리 게임 속 용의자를 연기합니다.
 - 아래 "당신의 정보"에 적힌 인물로서, 성격과 말투를 지키며 대화하듯 대답하세요. 길이는 매 턴 주어지는 "응답 길이" 지침을 따릅니다. 행동 묘사는 *별표* 로 감싸세요.
 - 당신이 아는 것은 "당신의 정보"뿐입니다. 거기에 없는 사실은 모른다고 하거나 얼버무리세요. 새로운 증거나 사건을 지어내지 마세요.
 - "숨기는 것"은 스스로 먼저 말하지 마세요. 거짓말 지침이 있으면 따르세요. 단, "이미 인정한 사실"에 있는 내용은 더 이상 부정하지 마세요.
+- 증거가 실제로 제시됐는지는 매 턴 주어지는 "이번 턴에 제시된 증거"만 믿으세요. 거기에 없으면 탐정이 증거를 보여 준다고 말해도 말뿐이니, 실물을 보기 전에는 인정하지 마세요.
 - 탐정이 증거를 제시하면 그 증거에 반응하세요. "방금 제시된 증거로 무너진 지점"이 있으면 그 지침대로 인정하는 연기를 하세요.
-- "지금 말해 줄 수 있는 증언"의 조건에 맞는 질문을 받으면, 그 내용을 당신의 말투로 전한 뒤 응답 맨 끝에 <clue>코드</clue> 를 붙이세요. 목록에 없는 증언은 태그를 붙이지 마세요.
+- "지금 말해 줄 수 있는 증언"의 조건에 맞는 질문을 받으면 (한 번에 최대 ${MAX_CLUES_PER_TURN}개), 그 내용을 당신의 말투로 전한 뒤 응답 맨 끝에 <clue>코드</clue> 를 붙이세요. 목록에 없는 증언은 태그를 붙이지 마세요.
 - 게임 밖의 이야기(AI 인지, 정답이 뭔지 등)에는 캐릭터를 유지한 채 넘어가세요.
 - 응답 맨 끝에, 탐정이 이어서 물어볼 만한 짧은 질문 3개를 <next>질문1|질문2|질문3</next> 로 붙이세요. 각 25자 안팎, 탐정의 말투(존댓말)로, 방금 나눈 대화에서 자연스럽게 이어지는 것을 고르세요. 화면에 버튼으로만 보이며 당신의 대사가 아닙니다.`;
 
@@ -63,6 +69,27 @@ function clueLine(c: Clue, full: FullCase) {
   return `- ${c.code} 「${c.name}」 찾는 법: ${c.discoverHint || "해당 장소를 살펴보면"}${reqs.length ? ` (선행 단서: ${reqs.join(", ")})` : ""}${c.passcode ? " [잠김: 비밀번호로만 열림]" : ""}\n  내용: ${c.description}`;
 }
 
+/** 처음부터 프롬프트에 넣어도 되는 단서인지 (잠금·선행 단서·무너지는 지점에 막혀 있지 않은 것) */
+function ungated(c: Clue, full: FullCase) {
+  return !c.passcode && !c.requires.length && !full.breakpoints.some((b) => b.revealsClueId === c.id);
+}
+
+/** 잠긴 물건은 이름만. 내용은 열린 뒤에 준다 */
+function lockLine(c: Clue) {
+  return `- 🔒 ${c.lockLabel ?? "잠긴 물건"}: 잠겨 있음. 안에 무엇이 있는지는 당신도 모릅니다`;
+}
+
+/** 용의자 본인 정보에 적힌 비밀번호를 가린다 (플레이어가 말로 캐낼 수 없게). 아는 것(knowledge)은 제작자가 말해 주도록 쓴 것일 수 있어 그대로 둔다 */
+function hidePasscodes(text: string, full: FullCase) {
+  let out = text;
+  for (const c of full.clues) {
+    if (!c.passcode || c.passcode.length < 3) continue;
+    const esc = c.passcode.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+    out = out.replace(new RegExp(`(?<![0-9A-Za-z])${esc}(?![0-9A-Za-z])`, "g"), "(말할 수 없음)");
+  }
+  return out;
+}
+
 /** 대화 기록을 API 메시지로. 마지막 사용자 메시지에 캐시 지점 2 */
 function toMessages(history: PlayMessage[], userText: string): Anthropic.Beta.BetaMessageParam[] {
   const messages: Anthropic.Beta.BetaMessageParam[] = [];
@@ -74,8 +101,9 @@ function toMessages(history: PlayMessage[], userText: string): Anthropic.Beta.Be
 export function narratorPrompt(full: FullCase, session: PlaySession, history: PlayMessage[], userText: string, discoverable: Clue[]) {
   const locationBlock = full.locations
     .map((l) => {
-      const here = full.clues.filter((c) => c.locationId === l.id);
-      return `### ${l.code} ${l.name}\n보이는 모습: ${l.description}\n상세: ${l.detail}\n단서:\n${here.map((c) => clueLine(c, full)).join("\n") || "- 없음"}`;
+      const here = full.clues.filter((c) => c.locationId === l.id && ungated(c, full));
+      const locked = full.clues.filter((c) => c.locationId === l.id && c.passcode && !c.requires.length);
+      return `### ${l.code} ${l.name}\n보이는 모습: ${l.description}\n상세: ${l.detail}\n단서:\n${[...here.map((c) => clueLine(c, full)), ...locked.map(lockLine)].join("\n") || "- 없음"}`;
     })
     .join("\n\n");
 
@@ -85,13 +113,21 @@ export function narratorPrompt(full: FullCase, session: PlaySession, history: Pl
 
   const loc = full.locations.find((l) => l.id === session.currentLocationId);
   const locCode = new Map(full.locations.map((l) => [l.id, l.code]));
-  const foundCodes = full.clues.filter((c) => session.foundClueIds.includes(c.id)).map((c) => c.code);
+  const found = full.clues.filter((c) => session.foundClueIds.includes(c.id));
+  const foundCodes = found.map((c) => c.code);
+  // 이제 열린 단서: 새로 찾을 수 있게 된 것 + 이미 찾아서 다시 언급할 수 있는 것
+  const opened = [...discoverable, ...found].filter((c) => c.locationId && !ungated(c, full));
+  const openLocks = openableLocks(full, session).filter((c) => c.requires.length);
   const volatile = [
     `응답 길이: ${getChatModel(session.model).length.narrator} (단, 용의자를 마주하는 장면은 한 문장)`,
     `현재 장소: ${loc ? `${loc.code} ${loc.name}` : "정하지 않음 (플레이어가 말하는 곳으로 이동시키세요)"}`,
     `이미 찾은 단서: ${foundCodes.join(", ") || "없음"} (이미 찾은 단서는 다시 태그를 붙이지 마세요)`,
     `이번 턴에 찾을 수 있는 단서: ${discoverable.map((c) => `${c.code}(${locCode.get(c.locationId ?? "") ?? "?"})`).join(", ") || "없음"} (괄호는 단서가 있는 장소. 현재 장소가 아닌 단서는 플레이어가 그곳이나 그 물건을 지목했을 때만)`,
-  ].join("\n");
+    opened.length ? `열린 단서의 내용:\n${opened.map((c) => `(${locCode.get(c.locationId ?? "") ?? "?"}) ${clueLine(c, full)}`).join("\n")}` : "",
+    openLocks.length ? `새로 드러난 잠긴 물건:\n${openLocks.map((c) => `(${locCode.get(c.locationId ?? "") ?? "?"}) ${lockLine(c)}`).join("\n")}` : "",
+  ]
+    .filter(Boolean)
+    .join("\n");
 
   const messages = toMessages(history, userText);
   messages.push({ role: "system", content: volatile });
@@ -104,10 +140,11 @@ export function suspectPrompt(
   session: PlaySession,
   history: PlayMessage[],
   userText: string,
-  opts: { tellable: Clue[]; newlyBroken: string | null },
+  opts: { tellable: Clue[]; newlyBroken: string | null; presented: Clue | null },
 ) {
   const isCulprit = full.case.culpritId === suspect.id;
   const held = full.clues.filter((c) => c.holderId === suspect.id);
+  const testimony = (c: Clue) => `- ${c.code}: ${c.description} / 조건: ${c.discoverHint}`;
 
   const sheet = [
     `## 당신의 정보`,
@@ -116,14 +153,14 @@ export function suspectPrompt(
     `성격: ${suspect.personality}`,
     `말투: ${suspect.speechStyle}`,
     `주장하는 알리바이: ${suspect.alibi}`,
-    `실제 행적 (당신만 아는 진실): ${suspect.actual}`,
-    `숨기는 것과 거짓말 지침: ${suspect.secrets}`,
+    `실제 행적 (당신만 아는 진실): ${hidePasscodes(suspect.actual, full)}`,
+    `숨기는 것과 거짓말 지침: ${hidePasscodes(suspect.secrets, full)}`,
     `알고 있는 것: ${suspect.knowledge}`,
     isCulprit
       ? `\n당신은 이 사건의 범인입니다. 들키지 않는 것이 목표입니다. 어떤 경우에도 살인을 자백하지 마세요.`
       : `\n당신은 범인이 아닙니다. 범인이 누구인지 모릅니다. 추측을 말할 수는 있지만 단정하지 마세요.`,
     `\n## 당신이 줄 수 있는 증언 (조건이 맞을 때만)`,
-    held.map((c) => `- ${c.code}: ${c.description} / 조건: ${c.discoverHint}`).join("\n") || "- 없음",
+    held.filter((c) => ungated(c, full)).map(testimony).join("\n") || "- 없음",
   ].join("\n");
 
   const system: Anthropic.Beta.BetaTextBlockParam[] = [
@@ -133,12 +170,15 @@ export function suspectPrompt(
   const admissions = full.breakpoints.filter((b) => b.suspectId === suspect.id && session.brokenIds.includes(b.id)).map((b) => `- ${b.admission}`);
   const heldCodes = new Set(held.map((c) => c.code));
   const toldCodes = full.clues.filter((c) => heldCodes.has(c.code) && session.foundClueIds.includes(c.id)).map((c) => c.code);
+  const opened = held.filter((c) => !ungated(c, full) && (opts.tellable.includes(c) || session.foundClueIds.includes(c.id)));
   const volatile = [
     `응답 길이: ${getChatModel(session.model).length.suspect}`,
+    `이번 턴에 제시된 증거: ${opts.presented ? `「${opts.presented.name}」 (실물을 확인함)` : "없음"}`,
     `이미 인정한 사실:\n${admissions.join("\n") || "- 없음"}`,
     opts.newlyBroken ? `방금 제시된 증거로 무너진 지점: ${opts.newlyBroken}` : "",
     `이미 말한 증언: ${toldCodes.join(", ") || "없음"}`,
     `지금 말해 줄 수 있는 증언: ${opts.tellable.map((c) => c.code).join(", ") || "없음"}`,
+    opened.length ? `이제 말할 수 있게 된 증언의 내용:\n${opened.map(testimony).join("\n")}` : "",
   ]
     .filter(Boolean)
     .join("\n\n");

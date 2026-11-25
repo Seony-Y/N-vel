@@ -1,9 +1,7 @@
 import Anthropic from "@anthropic-ai/sdk";
-import { and, eq } from "drizzle-orm";
 import { z } from "zod";
-import { db } from "@/db";
-import { playSessions } from "@/db/schema";
 import { logEvent } from "@/lib/ai/usage";
+import { finishSession } from "@/lib/game/finish";
 import { gradeNarrative } from "@/lib/game/narrative";
 import { grade, MAX_EVIDENCE, MAX_NARRATIVE } from "@/lib/game/rules";
 import { openSession } from "@/lib/game/session";
@@ -50,12 +48,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
   }
   const g = grade(full, session, { ...a, narrative, narrativeGrade });
   const accusation = { ...a, narrative, narrativeGrade, graded: g }; // 채점 결과까지 저장해 결과 화면이 나중에도 같게
-  // status 조건으로 두 번 제출되는 것을 막는다
-  const [done] = await db
-    .update(playSessions)
-    .set({ status: "finished", accusation, score: g.score, matchRate: g.matchRate, ending: g.ending, finishedAt: new Date(), updatedAt: new Date() })
-    .where(and(eq(playSessions.id, id), eq(playSessions.status, "playing")))
-    .returning({ id: playSessions.id });
+  const done = await finishSession(full, session, { accusation, score: g.score, matchRate: g.matchRate, ending: g.ending });
   if (!done) return Response.json({ error: "이미 제출했습니다" }, { status: 409 });
 
   return Response.json({ sessionId: id });

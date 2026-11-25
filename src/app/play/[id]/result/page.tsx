@@ -7,7 +7,8 @@ import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
 import { requireUserId } from "@/lib/auth";
 import { loadCase, loadSession } from "@/lib/game/load";
-import { DEFAULT_GIVE_UP_ENDING, ENDINGS } from "@/lib/game/endings";
+import { ENDINGS } from "@/lib/game/endings";
+import { buildReveal } from "@/lib/game/reveal";
 import { type Grade, SOLVED_SCORE, savedGrade } from "@/lib/game/rules";
 
 export const metadata: Metadata = { title: "수사 결과 | N-vel" };
@@ -84,10 +85,8 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
   // 포기한 수사는 제출한 추리가 없다
   const g = savedGrade(full, session);
   const ending = g?.ending ?? "gaveup";
-  const endingText =
-    ending === "correct" ? c.endingCorrect : ending === "partial" ? c.endingPartial : ending === "wrong" ? c.endingWrong : c.endingGiveUp || DEFAULT_GIVE_UP_ENDING;
-  const culprit = full.suspects.find((s) => s.id === c.culpritId);
-  const keyClues = full.clues.filter((x) => x.isKey);
+  // 끝낸 시점의 진상. 저장하기 전의 기록은 지금 사건으로 보여 준다
+  const { culprit, truth, endingText, keyClues, clueTotal } = session.reveal ?? buildReveal(full, ending);
   const found = new Set(session.foundClueIds);
 
   return (
@@ -97,6 +96,7 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
         <h1 className="mt-1 text-3xl font-bold">
           {ENDINGS[ending].icon} {ENDINGS[ending].title}
         </h1>
+        {session.isRetry && <p className="mt-2 text-xs opacity-80">🔁 재도전 기록 (진상을 본 뒤의 도전이라 통계에는 들어가지 않아요)</p>}
         {g ? (
           <>
             <div className="mt-5 flex justify-center gap-10">
@@ -113,7 +113,7 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
               </div>
             </div>
             <p className="mt-4 text-xs opacity-70">
-              해결 기준: 범인을 맞히고 {SOLVED_SCORE}점 이상 · 부분 해결: 범인만 맞힘 · 미제: 범인을 틀림
+              해결 기준: 범인을 맞히고 보너스를 뺀 점수가 {SOLVED_SCORE}점 이상 · 부분 해결: 범인만 맞힘 · 미제: 범인을 틀림
             </p>
           </>
         ) : (
@@ -177,15 +177,15 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
             )}
           </div>
           <p className="mt-4 text-xs text-zinc-400">
-            행동 {session.actionsUsed}회 · 단서 {session.foundClueIds.length} / {full.clues.length}개 발견 · 결정적 증거 {keyClues.filter((k) => found.has(k.id)).length} / {keyClues.length}개 발견
+            행동 {session.actionsUsed}회 · 단서 {session.foundClueIds.length} / {clueTotal}개 발견 · 결정적 증거 {keyClues.filter((k) => found.has(k.id)).length} / {keyClues.length}개 발견
           </p>
         </section>
       )}
 
       <section className="rounded-2xl border border-zinc-200 bg-white p-6 dark:border-zinc-800 dark:bg-zinc-900">
         <h2 className="mb-1 font-semibold">사건의 진상</h2>
-        <p className="mb-4 text-sm text-zinc-500">범인: {culprit?.name}</p>
-        <p className="whitespace-pre-wrap text-sm leading-relaxed">{c.truth}</p>
+        <p className="mb-4 text-sm text-zinc-500">범인: {culprit}</p>
+        <p className="whitespace-pre-wrap text-sm leading-relaxed">{truth}</p>
 
         <h3 className="mb-2 mt-6 text-sm font-semibold">결정적 증거</h3>
         <ul className="space-y-1.5 text-sm">
