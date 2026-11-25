@@ -17,29 +17,37 @@ const perfect = (narrative: string, verdict: "hit" | "miss"): Accusation => ({
 });
 const solver = (over = {}) => playing({ foundClueIds: ["D1", "D2", "D3"], actionsUsed: 10, ...over });
 
-test("서술이 없으면 효율 보너스를 받아도 해결이 아니다", () => {
-  const g = grade(full, solver(), perfect("", "miss"));
-  assert.equal(g.score, 85);
+test("서술을 쓰지 않아도 만점이고 해결이다", () => {
+  const g = grade(full, solver({ actionsUsed: 999 }), perfect("", "miss"));
+  assert.equal(g.score, 100);
+  assert.equal(g.matchRate, 100);
+  assert.equal(g.ending, "correct");
+  assert.ok(!g.items.some((it) => it.kind === "narrative"));
+});
+
+test("효율 보너스로는 해결이 되지 않는다", () => {
+  const g = grade(full, solver(), { ...perfect("", "miss"), answers: full.case.quiz.map(() => -1), evidenceIds: [] });
+  assert.equal(g.score, 60);
   assert.equal(g.ending, "partial");
 });
 
-test("서술까지 맞히면 해결, 보너스는 표시 점수에 더한다", () => {
+test("서술을 쓰면 보너스를 더한다", () => {
   const g = grade(full, solver(), perfect("글", "hit"));
-  assert.equal(g.score, 110);
+  assert.equal(g.score, 135);
   assert.equal(g.ending, "correct");
 });
 
 test("범인을 틀리면 나머지를 다 맞혀도 실패이고 보너스가 없다", () => {
   const g = grade(full, solver(), { ...perfect("글", "hit"), culpritId: "S1" });
   assert.equal(g.ending, "wrong");
-  assert.equal(g.score, 60);
+  assert.equal(g.score, 75);
 });
 
 test("힌트 감점과 찾지 않은 증거", () => {
   const g = grade(full, solver({ hintsUsed: 2, foundClueIds: ["D1"], actionsUsed: 999 }), perfect("글", "hit"));
   assert.equal(g.hintPenalty, 10);
   assert.equal(g.evidenceMatched, 1);
-  assert.equal(g.score, 80);
+  assert.equal(g.score, 98);
   assert.equal(g.ending, "correct");
 });
 
@@ -125,4 +133,25 @@ test("공식 사건의 모든 단서는 실제로 얻을 수 있다", () => {
 
 test("「폭우 속의 저택」의 결정적 증거는 이어야만 얻는다", () => {
   assert.ok(full.clues.filter((c) => c.isKey).every((c) => c.combine.length > 0));
+});
+
+test("프롤로그: 가이드만 따라가도 해결할 수 있다", () => {
+  const f = fixture("prologue-recipe-note");
+  const script = f.case.script;
+  const reveals = (where: string, pick: (s: (typeof script)[number]) => boolean) => script.find((s) => s.where === where && pick(s))!.reveals;
+  const found = [
+    ...reveals("L1", (s) => !!s.say?.includes("선반")),
+    ...reveals("S1", (s) => !!s.say?.startsWith("2시쯤")),
+    ...reveals("S1", (s) => s.present === "C1"),
+    ...reveals("L2", (s) => !!s.say?.includes("사물함")),
+    ...reveals("L2", (s) => !!s.say?.includes("달력")),
+    "C4",
+  ];
+  const goals = f.case.guide.flatMap((g) => (g.goal?.type === "find" ? [g.goal.target!] : []));
+  assert.ok(goals.every((id) => found.includes(id)));
+  const keys = f.clues.filter((c) => c.isKey && found.includes(c.id)).map((c) => c.id);
+  assert.equal(keys.length, 3);
+  const g = grade(f, playing({ foundClueIds: found }), { culpritId: "S2", answers: f.case.quiz.map((q) => q.answer), evidenceIds: keys, narrative: "" });
+  assert.equal(g.score, 100);
+  assert.equal(g.ending, "correct");
 });

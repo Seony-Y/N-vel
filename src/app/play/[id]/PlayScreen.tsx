@@ -1221,7 +1221,7 @@ function AccuseModal({
     const res = await fetch(`/api/play/${state.sessionId}/accuse`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ culpritId, answers, evidenceIds: evidence, narrative }),
+      body: JSON.stringify({ culpritId, answers, evidenceIds: evidence, narrative: data.scripted ? "" : narrative }),
     }).catch(() => null);
     if (!res?.ok) {
       setError((await res?.json().catch(() => ({})))?.error ?? "제출하지 못했어요. 연결을 확인하고 다시 제출해 주세요");
@@ -1236,10 +1236,11 @@ function AccuseModal({
       <p className="mb-3 text-sm text-zinc-500">제출하면 사건이 끝나고 결과가 공개됩니다. 다시 수정할 수 없어요.</p>
       {/* 채점 기준 (rules.ts 의 값 그대로) */}
       <p className="mb-5 rounded-lg bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400">
-        📊 범인 {POINTS.culprit}점 · 질문 {POINTS.quiz}점 · 결정적 증거 {POINTS.evidence}점 · 추리 서술 {POINTS.narrative}점 · 힌트 1개당 -{HINT_PENALTY}점
+        📊 범인 {POINTS.culprit}점 · 질문 {POINTS.quiz}점 · 결정적 증거 {POINTS.evidence}점 · 힌트 1개당 -{HINT_PENALTY}점
+        {!data.scripted && ` · 추리 서술(선택) 보너스 최대 +${POINTS.narrative}점`}
         {data.targetActions && ` · 목표 행동(${data.targetActions}회) 안에 풀면 효율 보너스 +${POINTS.efficiency}점`}
         <br />
-        범인을 맞히고 {data.targetActions ? "보너스를 뺀 점수가 " : ""}{SOLVED_SCORE}점 이상이면 해결, 범인을 틀리면 나머지를 다 맞혀도 실패예요.
+        범인을 맞히고 {data.targetActions ? "효율 보너스를 뺀 점수가 " : ""}{SOLVED_SCORE}점 이상이면 해결, 범인을 틀리면 나머지를 다 맞혀도 실패예요.
       </p>
 
       <fieldset className="mb-5">
@@ -1294,10 +1295,12 @@ function AccuseModal({
         )}
       </fieldset>
 
-      <fieldset className="mb-5">
-        <legend className="mb-1 font-medium">
-          추리 서술 <span className="text-sm font-normal text-zinc-500">({POINTS.narrative}점)</span>
-        </legend>
+      {/* 서술은 선택이라 접어 둔다 (쓰던 글이 있으면 펼친다). 대본 사건(프롤로그)에는 없다 */}
+      {!data.scripted && (
+      <details open={!!narrative.trim() || undefined} className="mb-5 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
+        <summary className="mb-1 cursor-pointer font-medium">
+          ✍️ 추리 서술 <span className="text-sm font-normal text-zinc-500">(선택 · 보너스 최대 +{POINTS.narrative}점)</span>
+        </summary>
         <p className="mb-2 text-xs leading-relaxed text-zinc-500">
           사건의 전말을 내 말로 정리해 보세요. 범인이 <b className="font-medium">언제·어떻게</b> 범행했는지, <b className="font-medium">왜</b> 그랬는지, 범인의 <b className="font-medium">알리바이가 왜 거짓인지</b>와 그 근거가 된 단서를 쓰면 점수가 올라가요. AI 가 사건의 진상과
           비교해 채점해요. 문장력은 상관없어요.
@@ -1326,9 +1329,10 @@ function AccuseModal({
         />
         <p className="mt-1 text-right text-xs text-zinc-400">
           {narrative.length.toLocaleString()} / {MAX_NARRATIVE.toLocaleString()}
-          {!narrative.trim() && " · 비워 두면 서술 점수는 0점이에요"}
+          {!narrative.trim() && " · 비워 두어도 괜찮아요"}
         </p>
-      </fieldset>
+      </details>
+      )}
 
       {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
       <button onClick={submit} disabled={!ready || pending} className="w-full rounded-xl bg-red-600 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50">

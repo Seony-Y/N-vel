@@ -113,7 +113,7 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
               </div>
             </div>
             <p className="mt-4 text-xs opacity-70">
-              해결 기준: 범인을 맞히고 보너스를 뺀 점수가 {SOLVED_SCORE}점 이상 · 부분 해결: 범인만 맞힘 · 미제: 범인을 틀림
+              해결 기준: 범인을 맞히고 {c.targetActions ? "효율 보너스를 뺀 점수가 " : ""}{SOLVED_SCORE}점 이상 · 부분 해결: 범인만 맞힘 · 미제: 범인을 틀림
             </p>
           </>
         ) : (

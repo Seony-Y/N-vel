@@ -100,14 +100,15 @@ export function breakpointFor(full: FullCase, session: PlaySession, suspectId: s
  *   해결      = 범인을 맞히고 효율 보너스를 뺀 점수가 SOLVED_SCORE 이상
  *   부분 해결 = 범인은 맞혔지만 점수가 모자람 (동기·수법·증거 중 틀린 게 많음)
  *   실패      = 범인을 틀림 (나머지를 다 맞혀도 실패)
- * 점수 = 범인 40 + 객관식 20(문항 수로 나눔) + 결정적 증거 15(맞힌 개수 비율) + 추리 서술 25(채점 포인트 비율) - 힌트 1개당 HINT_PENALTY(5)
- *        + 효율 보너스: 범인을 맞히고 목표 행동 수 안에 풀면 +10, 1.5배 안이면 +5 (최대 110점. 보너스는 표시 점수에만 더하고 해결 판정에는 쓰지 않는다)
- *   서술 없이 나머지를 다 맞히면 75점이라, 해결하려면 사건의 전말을 어느 정도 써야 한다
+ * 점수 = 범인 50 + 객관식 25(문항 수로 나눔) + 결정적 증거 25(맞힌 개수 비율) - 힌트 1개당 HINT_PENALTY(5)
+ *        + 추리 서술 보너스 최대 25 (선택. 쓴 사람만 채점 포인트 비율만큼)
+ *        + 효율 보너스: 범인을 맞히고 목표 행동 수 안에 풀면 +10, 1.5배 안이면 +5 (표시 점수에만 더하고 해결 판정에는 쓰지 않는다)
+ *   글을 쓰지 않아도 100점이 만점이고 해결할 수 있다
  * 서술 채점 도입 전에 제출한 기록(narrative 없음)은 예전 배점(LEGACY_POINTS)으로 계산한다.
  * 관리자 통계의 "성공"은 '해결'만 센다.
  */
-export const SOLVED_SCORE = 80;
-export const POINTS = { culprit: 40, quiz: 20, evidence: 15, narrative: 25, efficiency: 10 } as const;
+export const SOLVED_SCORE = 60;
+export const POINTS = { culprit: 50, quiz: 25, evidence: 25, narrative: 25, efficiency: 10 } as const;
 const LEGACY_POINTS = { culprit: 50, quiz: 30, evidence: 20, narrative: 0, efficiency: 0 } as const;
 /** 목표 행동 수의 이 배수 안이면 효율 보너스 절반 */
 export const EFFICIENCY_HALF_RATIO = 1.5;
@@ -203,6 +204,7 @@ export function grade(full: FullCase, session: PlaySession, a: Accusation): Grad
   const legacy = a.narrative === undefined;
   const P = legacy ? LEGACY_POINTS : POINTS;
   const ratio = narrativeRatio(a.narrativeGrade);
+  const wrote = !legacy && !!a.narrative?.trim(); // 서술은 선택. 쓰지 않았으면 채점 항목에 넣지 않는다
 
   const quizMax = c.quiz.length ? P.quiz / c.quiz.length : 0;
   const items: GradeItem[] = [
@@ -225,12 +227,12 @@ export function grade(full: FullCase, session: PlaySession, a: Accusation): Grad
       points: evidenceNeeded ? (P.evidence * evidenceMatched) / evidenceNeeded : P.evidence,
       max: P.evidence,
     },
-    ...(legacy
+    ...(!wrote
       ? []
       : [
           {
             kind: "narrative" as const,
-            label: "추리 서술",
+            label: "추리 서술 (보너스)",
             ok: ratio >= 0.7,
             mine: a.narrative || "-",
             answer: narrativeSummary(a.narrativeGrade),
@@ -260,9 +262,9 @@ export function grade(full: FullCase, session: PlaySession, a: Accusation): Grad
   const bonus = items.find((it) => it.kind === "efficiency")?.points ?? 0;
   const ending = culpritCorrect && Math.round(raw - bonus - hintPenalty) >= SOLVED_SCORE ? "correct" : culpritCorrect ? "partial" : "wrong";
 
-  // 일치율: 서술은 한 칸으로 치고 채점 비율만큼 맞힌 것으로 본다
-  const slots = 1 + c.quiz.length + evidenceNeeded + (legacy ? 0 : 1);
-  const hits = (culpritCorrect ? 1 : 0) + quizCorrect.filter(Boolean).length + evidenceMatched + (legacy ? 0 : ratio);
+  // 일치율: 서술을 썼으면 한 칸으로 치고 채점 비율만큼 맞힌 것으로 본다
+  const slots = 1 + c.quiz.length + evidenceNeeded + (wrote ? 1 : 0);
+  const hits = (culpritCorrect ? 1 : 0) + quizCorrect.filter(Boolean).length + evidenceMatched + (wrote ? ratio : 0);
   const matchRate = Math.round((100 * hits) / slots);
 
   const narrative = legacy ? null : { text: a.narrative ?? "", grade: a.narrativeGrade ?? null };

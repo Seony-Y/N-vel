@@ -380,7 +380,7 @@ export function TruthTab({ d, update }: Props) {
 
       <Section
         title="추리 서술 채점 포인트"
-        description={`플레이어가 쓴 추리 서술(${POINTS.narrative}점)을 AI 가 이 포인트마다 맞음·부분·빠짐으로 판정해요. 비워 두면 '범인과 범행 방법, 동기, 거짓 알리바이의 근거, 사건 흐름' 기본 기준으로 채점해요`}
+        description={`추리 서술은 선택이에요. 플레이어가 쓰면 AI 가 이 포인트마다 맞음·부분·빠짐으로 판정해 보너스(최대 +${POINTS.narrative}점)를 줘요. 비워 두면 '범인과 범행 방법, 동기, 거짓 알리바이의 근거, 사건 흐름' 기본 기준으로 채점해요`}
       >
         {d.rubric.map((r, ri) => (
           <ItemCard key={ri} title={`포인트 ${ri + 1}`} onRemove={() => update((x) => void x.rubric.splice(ri, 1))}>
