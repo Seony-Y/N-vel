@@ -44,7 +44,7 @@ async function Welcome({ searchParams }: { searchParams: PageProps<"/welcome">["
     <div className="w-full max-w-sm rounded-2xl border border-zinc-200 bg-white p-6 text-center dark:border-zinc-800 dark:bg-zinc-900">
       <p className="text-4xl">🎉</p>
       <h1 className="mt-3 text-xl font-semibold">이메일 인증이 끝났어요</h1>
-      <p className="mt-2 text-sm text-zinc-500">가입 선물로 크레딧을 드렸어요.</p>
+      <p className="mt-2 text-sm text-zinc-500">{balance > 0 ? "가입 선물로 크레딧을 드렸어요." : "이 이메일은 전에 가입 선물을 받아 다시 드리지 않아요. 프롤로그는 무료로 할 수 있어요."}</p>
       <p className="mt-4 text-3xl font-bold tabular-nums">💎 {balance.toLocaleString()}</p>
       {/* 첫 사건은 프롤로그로. 가이드를 따라 하는 법을 익힌다 */}
       <Link href={prologue ? `/cases/${prologue.id}` : "/"} className="mt-6 inline-block w-full rounded-lg bg-red-600 py-2.5 text-sm font-semibold text-white hover:bg-red-700">

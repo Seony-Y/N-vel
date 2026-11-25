@@ -8,7 +8,8 @@ import { notFound, redirect } from "next/navigation";
 import { db } from "@/db";
 import * as schema from "@/db/schema";
 import { PASSWORD_MAX, PASSWORD_MIN } from "./auth-rules";
-import { changeCredits, SIGNUP_BONUS } from "./credits";
+import { grantSignupBonus } from "./bonus";
+import { SIGNUP_BONUS } from "./credits-config";
 import { isDisposableEmail, resetPasswordEmail, sendEmail, verificationEmail } from "./email";
 
 export const auth = betterAuth({
@@ -93,15 +94,6 @@ export const auth = betterAuth({
 
 /** 구글 로그인을 쓸 수 있는지 (키를 넣었는지) */
 export const googleEnabled = !!(process.env.GOOGLE_CLIENT_ID && process.env.GOOGLE_CLIENT_SECRET);
-
-/** 가입 보너스 지급. 이미 받았으면 (DB 의 유일 제약에 걸려) 아무것도 하지 않는다 */
-export async function grantSignupBonus(userId: string) {
-  try {
-    await changeCredits({ userId, amount: SIGNUP_BONUS, reason: "signup_bonus" });
-  } catch (err) {
-    if (!String((err as { cause?: { code?: string } }).cause?.code ?? err).includes("23505")) throw err; // 23505 = 이미 지급됨
-  }
-}
 
 /** 로그인이 필요한 페이지에서 사용. 로그인 안 했으면 로그인 화면으로 보냈다가 돌아오게 한다 */
 export async function requireUserId(returnTo: string): Promise<string> {

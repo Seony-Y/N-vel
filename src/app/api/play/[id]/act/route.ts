@@ -10,6 +10,7 @@ import { extractClueCodes, extractMoves, extractSuggestions, narratorPrompt, sus
 import { publicState } from "@/lib/game/public";
 import { breakpointFor, discoverable, tellableBy, validateRequested } from "@/lib/game/rules";
 import { addMessages, addProgress, openSession } from "@/lib/game/session";
+import { overDailyCost } from "@/lib/quota";
 import type { FullCase } from "@/lib/game/load";
 import type { Clue, PlaySession } from "@/types/db";
 
@@ -20,7 +21,10 @@ const Body = z.object({
 });
 
 /** 호스팅의 함수 최대 실행 시간 (초). 응답이 길어져도 끊기지 않도록 */
-export const maxDuration = 60;
+export const maxDuration = 120;
+
+/** AI 응답을 기다리는 최대 시간. 함수가 강제로 끝나기 전에 끊어야 환불할 수 있다 */
+const AI_TIMEOUT_MS = 90_000;
 
 /** 스트림 끝에 붙는 구분자. 그 뒤에 JSON { state, events, talkTo, suggestions, credits } 가 온다 */
 const TRAILER = "\u001e";
@@ -54,11 +58,10 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
   if (full.case.isOfficial && full.case.script.length) return scriptedAct({ id, userId, full, session, thread, message, presentClueId });
 
   // ── 크레딧 차감 (AI 를 부르기 전에). 모자라면 행동하지 않는다. 오류가 나면 아래에서 돌려준다 ──
-  // 대화 기록은 차감과 상관없으니 같이 읽어 둔다 (DB 왕복을 줄여 첫 글자가 빨리 나오도록)
-  const [balance, history] = await Promise.all([
-    changeCredits({ userId, amount: -model.credits, reason: "action", sessionId: id, note: `${model.label} · ${isNarrator ? "조사" : `${suspect!.name} 심문`}` }),
-    loadThread(id, thread),
-  ]);
+  // 실패할 수 있는 읽기는 차감보다 먼저 끝낸다 (차감한 뒤 오류로 크레딧만 사라지지 않도록)
+  const [overCost, history] = await Promise.all([overDailyCost(userId), loadThread(id, thread)]);
+  if (overCost) return Response.json({ error: "하루에 쓸 수 있는 AI 사용량을 넘었어요. 나중에 이어서 수사해 주세요 (추리 제출은 할 수 있어요)" }, { status: 429 });
+  const balance = await changeCredits({ userId, amount: -model.credits, reason: "action", sessionId: id, note: `${model.label} · ${isNarrator ? "조사" : `${suspect!.name} 심문`}` });
   if (balance === null) {
     return Response.json({ error: `크레딧이 부족해요. 이 모델은 행동 1회에 ${model.credits}크레딧이 필요해요`, code: "NO_CREDITS", credits: await getBalance(userId) }, { status: 402 });
   }
@@ -66,6 +69,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
   // ── 증거 제시: 무너지는 지점은 AI 가 아니라 서버가 정한다 ──
   let userText = message;
   let newlyBroken: string | null = null;
+  let brokenId: string | null = null;
   const revealed: Clue[] = [];
   if (presentClueId) {
     const clue = full.clues.find((c) => c.id === presentClueId)!;
@@ -76,7 +80,9 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
       newlyBroken = bp.admission;
       const reveal = bp.revealsClueId ? full.clues.find((c) => c.id === bp.revealsClueId) : null;
       if (reveal && !session.foundClueIds.includes(reveal.id)) revealed.push(reveal);
-      session = await addProgress(id, { brokenIds: [bp.id], clueIds: revealed.map((c) => c.id) });
+      brokenId = bp.id;
+      // 저장은 응답을 다 받은 뒤에 한다. 오류가 나면 무너지지 않은 채로 남아 다시 제시할 수 있다
+      session = { ...session, brokenIds: [...session.brokenIds, bp.id], foundClueIds: [...session.foundClueIds, ...revealed.map((c) => c.id)] };
     }
   }
 
@@ -87,7 +93,9 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
     : suspectPrompt(full, suspect!, session, history, userText, { tellable: candidates, newlyBroken });
 
   // 행동 횟수·내 메시지 저장은 AI 응답을 기다리지 않고 함께 진행한다
-  const saving = Promise.all([addProgress(id, { actions: 1, credits: model.credits }), addMessages(id, thread, [{ role: "user", content: userText }])]);
+  const counting = addProgress(id, { actions: 1, credits: model.credits });
+  const saving = Promise.all([counting, addMessages(id, thread, [{ role: "user", content: userText }])]);
+  saving.catch(() => null); // 응답을 받는 동안 실패해도 처리되지 않은 오류가 되지 않게 (아래 await 에서 다룬다)
 
   const source: AsyncIterable<string> & { final?: () => Promise<{ refused: boolean; stopReason: string | null; model: string; usage: Parameters<typeof logUsage>[0]["usage"] }> } =
     MOCK_AI
@@ -159,13 +167,13 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
         }
 
         [session] = await saving;
-        const newIds = found.filter((c) => !revealed.includes(c)).map((c) => c.id);
+        const newIds = found.map((c) => c.id);
         const events = [
           ...(movedTo ? [`📍 ${movedTo.name}(으)로 이동했습니다`] : []),
           ...found.map((c) => `🔍 단서 발견: ${c.name}`),
         ];
         const [updated] = await Promise.all([
-          newIds.length || movedTo ? addProgress(id, { clueIds: newIds, locationId: movedTo?.id }) : session,
+          newIds.length || brokenId || movedTo ? addProgress(id, { clueIds: newIds, brokenIds: brokenId ? [brokenId] : [], locationId: movedTo?.id }) : session,
           addMessages(id, thread, [{ role: "assistant", content: finalText }, ...events.map((content) => ({ role: "event" as const, content }))]),
           result && logUsage({ userId, sessionId: id, kind: isNarrator ? "narrator" : "suspect", model: result.model, usage: result.usage }),
         ]);
@@ -175,11 +183,12 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
       } catch (err) {
         console.error("[play/act] 응답 실패", err);
         await logEvent({ type: "error", where: "play/act", message: err instanceof Error ? err.message : String(err), userId, sessionId: id, caseId: full.case.id, detail: { thread } });
-        // 응답을 못 받았으니 크레딧을 돌려준다
+        // 응답을 못 받았으니 크레딧과 행동 횟수를 돌려준다
+        const counted = await counting.catch(() => null);
         await saving.catch(() => null);
         const refunded = await changeCredits({ userId, amount: model.credits, reason: "refund", sessionId: id, note: "응답 오류" }).catch(() => null);
-        session = (await addProgress(id, { credits: -model.credits }).catch(() => null)) ?? session;
-        send("\n\n(응답 중 오류가 발생했습니다. 크레딧은 돌려드렸어요)" + TRAILER + JSON.stringify({ state: publicState(full, session), events: [], talkTo: null, suggestions: [], credits: refunded ?? balance }));
+        session = (counted && (await addProgress(id, { credits: -model.credits, actions: -1 }).catch(() => null))) || opened.session;
+        send(`\n\n(응답 중 오류가 발생했습니다. ${refunded === null ? "크레딧을 돌려드리지 못했어요. 문의해 주세요" : "크레딧은 돌려드렸어요"})` + TRAILER + JSON.stringify({ state: publicState(full, session), events: [], talkTo: null, suggestions: [], credits: refunded ?? balance }));
       } finally {
         if (!disconnected) {
           try {
@@ -232,14 +241,17 @@ function anthropicSource(params: {
   system: ReturnType<typeof narratorPrompt>["system"];
   messages: ReturnType<typeof narratorPrompt>["messages"];
 }) {
-  const stream = anthropic.beta.messages.stream({
-    model: params.model,
-    max_tokens: CHAT_MAX_TOKENS,
-    output_config: { effort: "low" },
-    ...(params.supportsFallback && { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
-    system: params.system,
-    messages: params.messages,
-  });
+  const stream = anthropic.beta.messages.stream(
+    {
+      model: params.model,
+      max_tokens: CHAT_MAX_TOKENS,
+      output_config: { effort: "low" },
+      ...(params.supportsFallback && { betas: ["server-side-fallback-2026-07-01"], fallbacks: "default" as const }),
+      system: params.system,
+      messages: params.messages,
+    },
+    { signal: AbortSignal.timeout(AI_TIMEOUT_MS) },
+  );
 
   async function* text() {
     for await (const event of stream) {

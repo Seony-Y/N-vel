@@ -45,6 +45,7 @@ export async function ledger(userId: string, limit = 50) {
 export const REASON_LABEL: Record<Reason, string> = {
   signup_bonus: "🎁 가입 보너스",
   action: "🔎 수사 행동",
+  review: "🤖 AI 검수",
   refund: "↩ 환불 (오류)",
   admin: "🛡 관리자 조정",
 };

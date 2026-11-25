@@ -209,7 +209,7 @@ export function CaseEditor({
           {caseId &&
             (confirmDelete ? (
               <>
-                <span className="hidden text-sm text-zinc-500 sm:inline">플레이 기록까지 모두 지워져요</span>
+                <span className="hidden text-sm text-zinc-500 sm:inline">사건과 내 플레이 기록이 지워져요</span>
                 <button type="button" onClick={() => setConfirmDelete(false)} className="rounded-lg px-3 py-2 text-sm hover:bg-zinc-100 dark:hover:bg-zinc-800">
                   취소
                 </button>
@@ -249,14 +249,17 @@ function ReviewTab({ d, isPublic, setIsPublic, caseId }: { d: Draft; isPublic: b
   const [pending, setPending] = useState<"check" | "ai" | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [copied, setCopied] = useState(false);
+  const [price, setPrice] = useState<number | null>(null); // 무료 횟수를 다 써서 유료 확인이 필요할 때의 크레딧
 
-  async function run(ai: boolean) {
+  async function run(ai: boolean, pay = false) {
     setPending(ai ? "ai" : "check");
     setError(null);
-    const res = await fetch("/api/cases/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file: cleanDraft(d), ai }) });
+    setPrice(null);
+    const res = await fetch("/api/cases/review", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ file: cleanDraft(d), ai, pay }) });
     const body = await res.json().catch(() => ({}));
     setPending(null);
     if (body.checks) setChecks(body.checks);
+    if (body.code === "PAY_REQUIRED") setPrice(body.credits);
     if (!res.ok) return setError(body.errors ? `${body.error}: ${body.errors[0]}` : (body.error ?? "검수에 실패했습니다"));
     if (ai) setReview(body.review);
   }
@@ -272,8 +275,13 @@ function ReviewTab({ d, isPublic, setIsPublic, caseId }: { d: Draft; isPublic: b
             {pending === "ai" ? "AI 가 사건을 읽는 중... (1분 정도)" : "🤖 AI 검수"}
           </button>
         </div>
-        <p className="text-xs text-zinc-500">AI 검수는 해결 가능성, 타임라인 모순, 난이도, 정보 유출을 확인해요. 한 시간에 10번까지 할 수 있어요.</p>
+        <p className="text-xs text-zinc-500">AI 검수는 해결 가능성, 타임라인 모순, 난이도, 정보 유출을 확인해요. 하루 3번까지 무료예요.</p>
         {error && <p className="text-sm text-red-600">{error}</p>}
+        {price !== null && (
+          <button type="button" onClick={() => run(true, true)} disabled={!!pending} className="rounded-lg border border-red-300 px-4 py-2 text-sm font-medium text-red-700 hover:bg-red-50 disabled:opacity-60 dark:border-red-900 dark:text-red-300 dark:hover:bg-red-950/40">
+            💎 {price} 크레딧으로 AI 검수하기
+          </button>
+        )}
 
         {checks && (
           <div>

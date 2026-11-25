@@ -342,7 +342,7 @@ export const creditLedger = pgTable(
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
     amount: integer("amount").notNull(), // +지급 / -차감
     balanceAfter: integer("balance_after").notNull(),
-    reason: text("reason", { enum: ["signup_bonus", "action", "refund", "admin"] }).notNull(),
+    reason: text("reason", { enum: ["signup_bonus", "action", "review", "refund", "admin"] }).notNull(),
     sessionId: uuid("session_id").references(() => playSessions.id, { onDelete: "set null" }),
     adminId: text("admin_id").references(() => user.id, { onDelete: "set null" }), // 관리자가 지급·회수한 경우
     note: text("note").notNull().default(""),
@@ -354,6 +354,25 @@ export const creditLedger = pgTable(
     uniqueIndex("credit_ledger_signup_bonus_once").on(t.userId).where(sql`${t.reason} = 'signup_bonus'`),
   ],
 );
+
+// ───────────────────────── 하루 한도·보너스 중복 방지 ─────────────────────────
+// AI 를 부르기 전에 차지하는 하루 횟수 (src/lib/quota.ts)
+export const aiQuota = pgTable(
+  "ai_quota",
+  {
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    kind: text("kind", { enum: ["review", "grade"] }).notNull(),
+    day: text("day").notNull(), // 한국 날짜 YYYY-MM-DD
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.userId, t.kind, t.day] })],
+);
+
+// 가입 보너스를 받고 탈퇴한 이메일의 HMAC 값 (다시 가입해 또 받지 못하게, 1년 보관). 이메일은 남기지 않는다 (src/lib/bonus.ts)
+export const bonusClaims = pgTable("bonus_claims", {
+  emailHash: text("email_hash").primaryKey(),
+  createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+});
 
 // ───────────────────────── API 충전 기록 (관리자) ─────────────────────────
 // Anthropic 계정에 충전한 금액. 남은 예상 금액 = 충전 합계 - 첫 기록 이후 API 원가(usage_logs) 합계

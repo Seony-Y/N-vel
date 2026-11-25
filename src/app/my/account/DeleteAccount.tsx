@@ -43,11 +43,11 @@ export function DeleteAccount({ credits }: { credits: number }) {
 
   return (
     <div className="space-y-3 rounded-xl border border-red-200 bg-red-50 p-4 text-sm dark:border-red-900 dark:bg-red-950/30">
-      <p className="font-semibold text-red-700 dark:text-red-300">탈퇴하면 아래 정보가 모두 지워지고 되돌릴 수 없어요</p>
+      <p className="font-semibold text-red-700 dark:text-red-300">탈퇴하면 아래 정보가 지워지고 되돌릴 수 없어요</p>
       <ul className="list-disc space-y-0.5 pl-5 text-zinc-700 dark:text-zinc-300">
         <li>남은 크레딧 💎 {credits.toLocaleString()} (환불되지 않아요)</li>
         <li>모든 수사 기록과 결과</li>
-        <li>내가 만든 사건 (공개한 사건도 사라져요)</li>
+        <li>내가 만든 사건 (목록에서 사라지고, 다른 사람이 플레이한 사건은 작성자 정보 없이 그 사람의 결과 화면에만 남아요)</li>
       </ul>
       <label className="block">
         <span className="mb-1 block text-zinc-600 dark:text-zinc-400">

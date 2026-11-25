@@ -16,6 +16,18 @@ const renameLegacy = (v: unknown) => {
   return { ...rest, targetActions: maxActions };
 };
 
+/** AI 에게 보내는 글의 총량 상한 (행동마다 크레딧이 고정이라, 사건이 지나치게 크면 원가를 감당할 수 없다) */
+export const MAX_CASE_CHARS = 30_000;
+
+/** AI 프롬프트·검수에 들어가는 글자 수. 화면 꾸미기용 HTML·이미지와 공식 사건 전용 가이드·대본은 빼고 센다 */
+const NOT_FOR_AI = ["introHtml", "docHtml", "image", "coverImage", "portrait", "guide", "script"];
+export function aiChars(v: unknown): number {
+  if (typeof v === "string") return v.length;
+  if (Array.isArray(v)) return v.reduce((n: number, x) => n + aiChars(x), 0);
+  if (!v || typeof v !== "object") return 0;
+  return Object.entries(v).reduce((n, [k, x]) => (NOT_FOR_AI.includes(k) ? n : n + aiChars(x)), 0);
+}
+
 const CaseFileShape = z
   .object({
     slug: z.string().regex(/^[a-z0-9-]+$/).optional(),
@@ -122,6 +134,8 @@ const CaseFileShape = z
   })
   .superRefine((c, ctx) => {
     const issue = (message: string) => ctx.addIssue({ code: "custom", message });
+    const chars = aiChars(c);
+    if (chars > MAX_CASE_CHARS) issue(`사건 전체 글이 너무 길어요 (${chars.toLocaleString()}자 / 최대 ${MAX_CASE_CHARS.toLocaleString()}자). 설명을 줄여 주세요`);
     const L = new Set(c.locations.map((l) => l.code));
     const S = new Set(c.suspects.map((s) => s.code));
     const C = new Set(c.clues.map((x) => x.code));

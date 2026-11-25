@@ -13,7 +13,7 @@ async function main() {
   const { account, user } = await import("@/db/schema");
   const { eq, and } = await import("drizzle-orm");
   const { hashPassword } = await import("better-auth/crypto");
-  const { grantSignupBonus } = await import("@/lib/auth");
+  const { grantSignupBonus } = await import("@/lib/bonus");
   const { getBalance } = await import("@/lib/credits");
 
   let email = process.env.TEST_ACCOUNT_EMAIL;

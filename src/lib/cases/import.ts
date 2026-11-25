@@ -10,6 +10,7 @@ import type { CaseFile } from "./format";
  *
  * 수정할 때 같은 코드(L1, S1, C1)의 장소·용의자·단서는 id 를 그대로 유지한다.
  * 그래야 진행 중인 플레이 기록(찾은 단서 id 등)과 끝난 기록(지목한 범인 id)이 깨지지 않는다.
+ * 무너지는 지점도 같은 용의자·같은 단서면 id 를 유지한다 (이미 인정한 사실이 사라지지 않도록).
  * 하위 항목은 전부 지우고 같은 id 로 다시 넣는다.
  */
 export async function writeCase(
@@ -20,12 +21,19 @@ export async function writeCase(
 
   // 기존 코드 → id
   const ids = new Map<string, string>();
+  const bpIds = new Map<string, string[]>(); // "용의자 id:단서 id" → 무너지는 지점 id (같은 짝이 여러 개면 순서대로)
   if (opts.caseId) {
-    const [l, s, c] = await Promise.all([
+    const [l, s, c, b] = await Promise.all([
       db.select({ code: locations.code, id: locations.id }).from(locations).where(eq(locations.caseId, caseId)),
       db.select({ code: suspects.code, id: suspects.id }).from(suspects).where(eq(suspects.caseId, caseId)),
       db.select({ code: clues.code, id: clues.id }).from(clues).where(eq(clues.caseId, caseId)),
+      db
+        .select({ id: breakpoints.id, suspectId: breakpoints.suspectId, clueId: breakpoints.clueId })
+        .from(breakpoints)
+        .innerJoin(suspects, eq(suspects.id, breakpoints.suspectId))
+        .where(eq(suspects.caseId, caseId)),
     ]);
+    for (const r of b) bpIds.set(`${r.suspectId}:${r.clueId}`, [...(bpIds.get(`${r.suspectId}:${r.clueId}`) ?? []), r.id]);
     for (const r of [...l, ...s, ...c]) ids.set(r.code, r.id);
   }
   for (const x of [...file.locations, ...file.suspects, ...file.clues]) if (!ids.has(x.code)) ids.set(x.code, crypto.randomUUID());
@@ -116,7 +124,13 @@ export async function writeCase(
   );
 
   const bps = file.suspects.flatMap((s) =>
-    s.breakpoints.map((b) => ({ suspectId: id(s.code), clueId: id(b.clue), admission: b.admission, revealsClueId: b.reveals ? id(b.reveals) : null })),
+    s.breakpoints.map((b) => ({
+      id: bpIds.get(`${id(s.code)}:${id(b.clue)}`)?.shift() ?? crypto.randomUUID(),
+      suspectId: id(s.code),
+      clueId: id(b.clue),
+      admission: b.admission,
+      revealsClueId: b.reveals ? id(b.reveals) : null,
+    })),
   );
   if (bps.length) queries.push(db.insert(breakpoints).values(bps));
 

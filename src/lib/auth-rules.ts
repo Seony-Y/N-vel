@@ -27,5 +27,14 @@ export const VERIFIED_CALLBACK = "/welcome";
 
 /** 로그인 후 돌아갈 주소. 외부 사이트로 보내지 않도록 내부 경로만 허용 */
 export function safeRedirect(next: string | null | undefined): string {
-  return next && next.startsWith("/") && !next.startsWith("//") ? next : "/";
+  if (!next?.startsWith("/")) return "/";
+  // 브라우저처럼 해석해서 확인한다 (역슬래시나 탭을 섞은 주소가 바깥 사이트로 풀리는 것을 막기 위해)
+  try {
+    const base = "http://internal.invalid";
+    const url = new URL(next, base);
+    const path = url.pathname + url.search + url.hash;
+    return url.origin === base && !path.startsWith("//") ? path : "/";
+  } catch {
+    return "/";
+  }
 }
