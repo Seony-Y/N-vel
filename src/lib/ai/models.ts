@@ -1,5 +1,5 @@
 /*
- * 사용자가 채팅방마다 고를 수 있는 모델 목록.
+ * 플레이마다 고를 수 있는 모델 목록. 화면에는 label(기본·정교함·최고)을, 관리자 화면에는 name(모델 이름)을 쓴다.
  * 가격은 1M 토큰당 달러 (2026-10 기준). 바뀌면 여기만 수정하면 된다.
  * credits = 행동 1회에 차감할 크레딧. 1크레딧 = 판매가 $0.001, 원가의 약 2배 (근거: docs/PRICING.md)
  */
@@ -7,6 +7,9 @@
 export interface ChatModel {
   id: string;
   label: string;
+  name: string;
+  /** 새로 고를 수 없는 모델 (이미 이 모델로 진행 중인 수사는 계속할 수 있다) */
+  retired?: boolean;
   description: string;
   inputPrice: number;
   outputPrice: number;
@@ -20,8 +23,9 @@ export interface ChatModel {
 export const CHAT_MODELS: ChatModel[] = [
   {
     id: "claude-haiku-5-5",
-    label: "Haiku 5.5",
-    description: "가장 빠르고 저렴함. 기본 모델",
+    label: "기본",
+    name: "Haiku 5.5",
+    description: "빠르고 가벼워요",
     inputPrice: 0.1,
     outputPrice: 0.5,
     credits: 1,
@@ -33,8 +37,9 @@ export const CHAT_MODELS: ChatModel[] = [
   },
   {
     id: "claude-sonnet-5-5",
-    label: "Sonnet 5.5",
-    description: "품질과 비용의 균형",
+    label: "정교함",
+    name: "Sonnet 5.5",
+    description: "묘사와 연기가 더 살아 있어요",
     inputPrice: 2,
     outputPrice: 10,
     credits: 15,
@@ -46,8 +51,9 @@ export const CHAT_MODELS: ChatModel[] = [
   },
   {
     id: "claude-opus-5-5",
-    label: "Opus 5.5",
-    description: "더 섬세한 연기와 긴 설정 이해",
+    label: "최고",
+    name: "Opus 5.5",
+    description: "소설처럼 섬세한 장면과 연기",
     inputPrice: 4,
     outputPrice: 20,
     credits: 30,
@@ -59,8 +65,10 @@ export const CHAT_MODELS: ChatModel[] = [
   },
   {
     id: "claude-fable-5-1",
-    label: "Fable 5.1",
-    description: "최고 성능. 비용이 가장 큼",
+    label: "최고+",
+    name: "Fable 5.1",
+    retired: true,
+    description: "지금은 새로 고를 수 없어요",
     inputPrice: 10,
     outputPrice: 50,
     credits: 75,
@@ -71,6 +79,10 @@ export const CHAT_MODELS: ChatModel[] = [
     },
   },
 ];
+
+/** 새로 고를 수 있는 모델 */
+export const OFFERED_MODELS = CHAT_MODELS.filter((m) => !m.retired);
+export const OFFERED_MODEL_IDS = OFFERED_MODELS.map((m) => m.id) as [string, ...string[]];
 
 export const DEFAULT_CHAT_MODEL = process.env.CHAT_MODEL ?? "claude-haiku-5-5";
 

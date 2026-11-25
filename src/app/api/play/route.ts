@@ -2,14 +2,14 @@ import { and, desc, eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { playSessions } from "@/db/schema";
-import { CHAT_MODELS, DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
+import { DEFAULT_CHAT_MODEL, OFFERED_MODEL_IDS } from "@/lib/ai/models";
 import { getUserId } from "@/lib/auth";
 import { canPlay, loadCase } from "@/lib/game/load";
 import { addMessages } from "@/lib/game/session";
 
 const Body = z.object({
   caseId: z.uuid(),
-  model: z.enum(CHAT_MODELS.map((m) => m.id) as [string, ...string[]]).optional(),
+  model: z.enum(OFFERED_MODEL_IDS).optional(),
   mode: z.enum(["easy", "hard"]).default("easy"),
   restart: z.boolean().default(false), // true 면 진행 중인 기록은 지우고 새로 시작
 });

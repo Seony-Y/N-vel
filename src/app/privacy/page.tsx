@@ -10,7 +10,7 @@ const td = "border border-zinc-200 px-2 py-1.5 align-top dark:border-zinc-700";
 
 /** 개인정보를 맡기거나 국외로 옮기는 곳 (실제로 쓰는 외부 서비스와 맞출 것) */
 const PROCESSORS = [
-  { name: "Anthropic, PBC", country: "미국", what: "플레이 중 입력한 행동·질문·추리 서술, 사건 내용", why: "AI 나레이터·용의자 응답 생성, 서술 채점, 사건 검수" },
+  { name: "Anthropic, PBC", country: "미국", what: "플레이 중 입력한 행동·질문·추리 서술, 사건 내용과 초안 아이디어", why: "AI 나레이터·용의자 응답 생성, 서술 채점, 사건 검수·초안" },
   { name: "Neon", country: "싱가포르 (AWS 아시아 태평양 리전)", what: "이 방침 1조의 모든 항목", why: "데이터베이스 보관" },
   { name: "Vercel Inc.", country: "미국 등 (전 세계 서버)", what: "접속 IP, 요청 기록", why: "웹사이트 호스팅" },
   { name: "Resend, Inc.", country: "미국", what: "이메일 주소, 이름", why: "인증 메일 발송 (이메일 가입 계정)" },

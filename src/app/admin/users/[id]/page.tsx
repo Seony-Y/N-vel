@@ -27,7 +27,7 @@ export default function AdminUserPage({ params }: PageProps<"/admin/users/[id]">
   );
 }
 
-const modelLabel = (id: string | null) => CHAT_MODELS.find((m) => m.id === id)?.label ?? id ?? "-";
+const modelLabel = (id: string | null) => CHAT_MODELS.find((m) => m.id === id)?.name ?? id ?? "-";
 
 async function UserDetail({ params }: { params: PageProps<"/admin/users/[id]">["params"] }) {
   await requireAdmin("/admin");

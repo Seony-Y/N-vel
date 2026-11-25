@@ -7,6 +7,7 @@ import { RateCase } from "@/components/RateCase";
 import { ShareResult } from "@/components/ShareResult";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
+import { OFFERED_MODEL_IDS } from "@/lib/ai/models";
 import { requireUserId } from "@/lib/auth";
 import { myRating } from "@/lib/feedback";
 import { findNextCase } from "@/lib/game/catalog";
@@ -232,7 +233,7 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
           />
         )}
         {/* 다시 도전 (결과 보기는 지금 화면이므로 다시 도전만) */}
-        <CaseActions caseId={c.id} ongoingId={null} lastFinishedId={null} loggedIn retryOnly />
+        <CaseActions caseId={c.id} ongoingId={null} lastFinishedId={null} loggedIn retryOnly defaultModel={OFFERED_MODEL_IDS.find((m) => m === session.model)} defaultMode={session.mode} />
         <div className="flex gap-2">
           <Link href={`/cases/${c.id}`} className="flex-1 rounded-xl border border-zinc-300 py-3 text-center text-sm font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
             사건 페이지로

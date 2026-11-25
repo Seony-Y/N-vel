@@ -42,7 +42,8 @@ async function Play({ params }: { params: PageProps<"/play/[id]">["params"] }) {
       initialState={publicState(full, session)}
       initialMessages={publicMessages(messages)}
       initialCredits={credits}
-      models={CHAT_MODELS.map(({ id, label, description, credits }) => ({ id, label, description, credits }))}
+      // 새로 고를 수 있는 모델 + 지금 이 수사가 쓰는 모델
+      models={CHAT_MODELS.filter((m) => !m.retired || m.id === session.model).map(({ id, label, description, credits }) => ({ id, label, description, credits }))}
       defaultModel={getChatModel(null).id}
     />
   );

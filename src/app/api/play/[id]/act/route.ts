@@ -104,7 +104,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
 
   const source: AsyncIterable<string> & { final?: () => Promise<{ refused: boolean; stopReason: string | null; model: string; usage: Parameters<typeof logUsage>[0]["usage"] }> } =
     MOCK_AI
-      ? streamText(mockGameReply({ userText, modelLabel: model.label, who: suspect?.name ?? "나레이터", candidates, admission: newlyBroken, full: isNarrator ? full : null }))
+      ? streamText(mockGameReply({ userText, modelLabel: model.name, who: suspect?.name ?? "나레이터", candidates, admission: newlyBroken, full: isNarrator ? full : null }))
       : anthropicSource({ model: model.id, supportsFallback: model.supportsFallback, system, messages });
 
   const encoder = new TextEncoder();

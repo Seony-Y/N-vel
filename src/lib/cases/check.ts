@@ -11,6 +11,22 @@ export interface CheckIssue {
   message: string;
 }
 
+/** 어떤 순서로 해도 얻을 수 없는 단서의 코드. 선행 단서·증거 제시·잠금·잇기를 끝까지 따라가 본다 (비밀번호는 알아냈다고 본다) */
+export function unreachableClues(c: CaseFile): string[] {
+  const found = new Set<string>();
+  const gated = new Set(c.suspects.flatMap((s) => s.breakpoints.flatMap((b) => (b.reveals ? [b.reveals] : []))));
+  for (let before = -1; before !== found.size; ) {
+    before = found.size;
+    for (const x of c.clues) {
+      if (x.combine.length) {
+        if (x.combine.every((r) => found.has(r))) found.add(x.code);
+      } else if (!gated.has(x.code) && x.requires.every((r) => found.has(r))) found.add(x.code);
+    }
+    for (const s of c.suspects) for (const b of s.breakpoints) if (b.reveals && found.has(b.clue)) found.add(b.reveals);
+  }
+  return c.clues.filter((x) => !found.has(x.code)).map((x) => x.code);
+}
+
 export function checkCase(c: CaseFile): CheckIssue[] {
   const out: CheckIssue[] = [];
   const warn = (message: string) => out.push({ severity: "warning", message });
@@ -33,6 +49,8 @@ export function checkCase(c: CaseFile): CheckIssue[] {
     return false;
   };
   for (const x of c.clues) if (reachesSelf(x.code)) out.push({ severity: "error", message: `「${x.name}」의 선행 단서나 이을 단서가 서로를 요구하고 있어 영원히 찾을 수 없어요` });
+
+  for (const code of unreachableClues(c)) out.push({ severity: "error", message: `「${name(code)}」은 지금 설정으로는 얻을 방법이 없어요` });
 
   // 증언 단서인데 "제시받아야" 라고 써 두고 무너지는 지점이 없음
   const revealed = new Set(c.suspects.flatMap((s) => s.breakpoints.map((b) => b.reveals).filter(Boolean)));

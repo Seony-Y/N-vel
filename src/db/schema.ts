@@ -79,7 +79,7 @@ export const verification = pgTable("verification", {
 
 
 // ───────────────────────── 사건 ─────────────────────────
-// 진상(culprit~solution)은 서버 전용. 화면으로 보내는 값은 src/lib/cases/public.ts 에서 골라낸다
+// 진상(culprit~solution)은 서버 전용. 화면으로 보내는 값은 src/lib/game/public.ts 에서 골라낸다
 export const caseRating = pgEnum("case_rating", ["all", "15", "19"]);
 
 export interface QuizQuestion {
@@ -355,7 +355,7 @@ export const creditLedger = pgTable(
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
     amount: integer("amount").notNull(), // +지급 / -차감
     balanceAfter: integer("balance_after").notNull(),
-    reason: text("reason", { enum: ["signup_bonus", "action", "review", "refund", "admin"] }).notNull(),
+    reason: text("reason", { enum: ["signup_bonus", "action", "review", "draft", "refund", "admin"] }).notNull(),
     sessionId: uuid("session_id").references(() => playSessions.id, { onDelete: "set null" }),
     adminId: text("admin_id").references(() => user.id, { onDelete: "set null" }), // 관리자가 지급·회수한 경우
     note: text("note").notNull().default(""),
@@ -375,7 +375,7 @@ export const aiQuota = pgTable(
   "ai_quota",
   {
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["review", "grade", "report"] }).notNull(),
+    kind: text("kind", { enum: ["review", "grade", "report", "draft"] }).notNull(),
     day: text("day").notNull(), // 한국 날짜 YYYY-MM-DD
     count: integer("count").notNull().default(0),
   },

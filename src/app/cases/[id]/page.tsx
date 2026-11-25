@@ -10,7 +10,7 @@ import { ReportCase } from "@/components/ReportCase";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
-import { CHAT_MODELS, DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
+import { DEFAULT_CHAT_MODEL, OFFERED_MODELS } from "@/lib/ai/models";
 import { getUserId, isAdmin } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
 import { myFavoriteIds, mySessionsFor, publicCaseSummary } from "@/lib/game/catalog";
@@ -165,7 +165,7 @@ async function CaseDetail({ params, searchParams }: Pick<PageProps<"/cases/[id]"
             loggedIn={!!userId}
             autoStart={start === "1"}
             guestFree={c.scripted && c.guide.length > 0}
-            {...(!(full.case.isOfficial && full.case.script.length) && { models: CHAT_MODELS.map(({ id, label, credits }) => ({ id, label, credits })), balance })}
+            {...(!(full.case.isOfficial && full.case.script.length) && { models: OFFERED_MODELS.map(({ id, label, credits }) => ({ id, label, credits })), balance })}
             defaultModel={DEFAULT_CHAT_MODEL}
           />
 

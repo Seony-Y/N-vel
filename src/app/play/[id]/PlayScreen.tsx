@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useLeaveGuard } from "@/components/useLeaveGuard";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
 import { STATEMENT_PREFIX } from "@/lib/game/statements";
 import type { GuestProgress, GuestResult } from "@/lib/guest-storage";
@@ -470,30 +471,7 @@ export function PlayScreen({
     }
   }
 
-  useEffect(() => {
-    if (!notesDirty) return;
-    // 새로고침·탭 닫기: 브라우저 기본 확인 창
-    const onUnload = (e: BeforeUnloadEvent) => e.preventDefault();
-    // 사이트 안의 링크: 이동을 멈추고 임시저장 안내를 띄운다 (React 보다 먼저 받도록 document 캡처 단계)
-    // 같은 사이트의 다른 페이지로 가는 링크만. 바깥 주소는 beforeunload 가, 새 탭·다운로드·같은 페이지 안 이동은 그대로 둔다
-    const onClick = (e: MouseEvent) => {
-      if (e.defaultPrevented || e.button !== 0 || e.metaKey || e.ctrlKey || e.shiftKey || e.altKey) return;
-      const a = (e.target as Element | null)?.closest?.("a[href]");
-      if (!a || a.hasAttribute("download") || (a.getAttribute("target") ?? "_self") !== "_self") return;
-      const here = window.location;
-      const url = new URL(a.getAttribute("href")!, here.href);
-      if (url.origin !== here.origin || (url.pathname === here.pathname && url.search === here.search)) return;
-      e.preventDefault();
-      e.stopPropagation();
-      setLeaveTo(url.pathname + url.search + url.hash);
-    };
-    window.addEventListener("beforeunload", onUnload);
-    document.addEventListener("click", onClick, true);
-    return () => {
-      window.removeEventListener("beforeunload", onUnload);
-      document.removeEventListener("click", onClick, true);
-    };
-  }, [notesDirty]);
+  useLeaveGuard(notesDirty, setLeaveTo);
 
   // 추리 서술 초안도 이 브라우저에 백업한다. 새로고침해도 제출 창을 다시 열면 이어서 쓸 수 있게
   const narrativeKey = `nvel:narrative:${state.sessionId}`;

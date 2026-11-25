@@ -2,8 +2,9 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { Section } from "@/components/form/fields";
+import { useLeaveGuard } from "@/components/useLeaveGuard";
 import type { CheckIssue } from "@/lib/cases/check";
 import { CaseFile } from "@/lib/cases/format";
 import type { Review } from "@/lib/cases/review";
@@ -42,6 +43,7 @@ export function CaseEditor({
   const [notice, setNotice] = useState<string | null>(null);
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [importing, setImporting] = useState(false);
+  const [drafting, setDrafting] = useState(false);
 
   const update = (fn: (d: Draft) => void) => {
     setD((prev) => {
@@ -53,12 +55,8 @@ export function CaseEditor({
   };
 
   // 저장하지 않고 나가려 하면 경고
-  useEffect(() => {
-    if (!dirty) return;
-    const onLeave = (e: BeforeUnloadEvent) => e.preventDefault();
-    window.addEventListener("beforeunload", onLeave);
-    return () => window.removeEventListener("beforeunload", onLeave);
-  }, [dirty]);
+  const [leaveTo, setLeaveTo] = useState<string | null>(null);
+  useLeaveGuard(dirty, setLeaveTo);
 
   function validate(): CaseFile | null {
     const parsed = CaseFile.safeParse(cleanDraft(d));
@@ -137,6 +135,11 @@ export function CaseEditor({
         <h1 className="text-2xl font-bold">{caseId ? "사건 수정" : "사건 만들기"}</h1>
         <div className="flex flex-wrap gap-2 text-sm">
           {!caseId && (
+            <button type="button" onClick={() => setDrafting(true)} className="rounded-lg bg-zinc-900 px-3 py-1.5 font-medium text-white hover:bg-zinc-700 dark:bg-white dark:text-zinc-900">
+              ✨ AI 초안
+            </button>
+          )}
+          {!caseId && (
             <button type="button" onClick={() => load(CaseFile.parse(sample), "예시 사건을 불러왔어요. 고쳐서 저장해 보세요")} className="rounded-lg border border-zinc-300 px-3 py-1.5 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
               예시 불러오기
             </button>
@@ -201,6 +204,30 @@ export function CaseEditor({
         {tab === "review" && <ReviewTab d={d} isPublic={isPublic} setIsPublic={(v) => (setIsPublic(v), setDirty(true))} caseId={caseId} />}
       </div>
 
+      {leaveTo && (
+        <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" onClick={() => setLeaveTo(null)}>
+          <div role="dialog" aria-modal="true" aria-label="저장하지 않은 변경" className="w-full max-w-md rounded-2xl bg-white p-5 dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
+            <h2 className="text-lg font-semibold">저장하지 않은 변경이 있어요</h2>
+            <p className="mt-2 text-sm text-zinc-500">지금 나가면 고친 내용이 사라져요.</p>
+            <div className="mt-5 flex justify-end gap-2 text-sm">
+              <button type="button" onClick={() => setLeaveTo(null)} className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white hover:bg-red-700">
+                계속 편집
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  setDirty(false);
+                  router.push(leaveTo);
+                }}
+                className="rounded-lg border border-zinc-300 px-4 py-2 hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800"
+              >
+                저장하지 않고 나가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+      {drafting && <DraftDialog onClose={() => setDrafting(false)} onLoad={(f) => (load(f, "AI 초안을 불러왔어요. 검수 탭에서 점검하고 고쳐서 저장하세요"), setDrafting(false))} />}
       {importing && <ImportDialog onClose={() => setImporting(false)} onLoad={(f) => (load(f, "JSON 을 불러왔어요. 확인 후 저장하세요"), setImporting(false))} />}
 
       <div className="fixed inset-x-0 bottom-0 z-20 border-t border-zinc-200 bg-white/90 backdrop-blur dark:border-zinc-800 dark:bg-zinc-950/90">
@@ -338,6 +365,59 @@ function ReviewTab({ d, isPublic, setIsPublic, caseId }: { d: Draft; isPublic: b
         )}
       </Section>
     </>
+  );
+}
+
+/** AI 사건 초안: 아이디어를 적으면 사건 전체의 초안을 만들어 에디터에 불러온다 (저장은 직접) */
+function DraftDialog({ onClose, onLoad }: { onClose: () => void; onLoad: (f: Draft) => void }) {
+  const [idea, setIdea] = useState("");
+  const [size, setSize] = useState<"short" | "normal">("short");
+  const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [price, setPrice] = useState<number | null>(null);
+
+  async function make(pay = false) {
+    if (pending) return;
+    setPending(true);
+    setError(null);
+    setPrice(null);
+    const res = await fetch("/api/cases/draft", { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ idea, size, pay }) }).catch(() => null);
+    const body = await res?.json().catch(() => ({}));
+    setPending(false);
+    if (res?.ok) return onLoad(CaseFile.parse(body.file));
+    if (body?.code === "PAY_REQUIRED") setPrice(body.credits);
+    setError(body?.error ?? "초안을 만들지 못했어요. 잠시 후 다시 시도해 주세요");
+  }
+
+  return (
+    <div className="fixed inset-0 z-40 flex items-center justify-center bg-black/50 p-4" onClick={() => !pending && onClose()}>
+      <div role="dialog" aria-modal="true" aria-label="AI 초안" className="w-full max-w-lg space-y-3 rounded-2xl bg-white p-5 dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
+        <h2 className="text-lg font-semibold">✨ AI 사건 초안</h2>
+        <p className="text-sm text-zinc-500">어떤 사건인지 적어 주세요. 초안을 만들어 에디터에 불러와요. 지금 편집 중인 내용은 바뀌고, 저장은 직접 해야 해요. 하루 1번 무료예요.</p>
+        <textarea value={idea} onChange={(e) => setIdea(e.target.value)} rows={4} maxLength={500} disabled={pending} placeholder="예) 눈 오는 산장의 요리 대회. 우승 요리의 비밀 재료가 사라졌다" className="w-full rounded-lg border border-zinc-300 bg-white p-3 text-sm dark:border-zinc-700 dark:bg-zinc-950" />
+        <div className="flex gap-2 text-sm">
+          {(
+            [
+              ["short", "짧게 (약 10분)"],
+              ["normal", "보통 (약 20분)"],
+            ] as const
+          ).map(([k, label]) => (
+            <button key={k} type="button" aria-pressed={size === k} disabled={pending} onClick={() => setSize(k)} className={`rounded-full border px-3 py-1 ${size === k ? "border-red-600 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : "border-zinc-300 dark:border-zinc-700"}`}>
+              {label}
+            </button>
+          ))}
+        </div>
+        {error && <p className="text-sm text-red-600">{error}</p>}
+        <div className="flex justify-end gap-2 text-sm">
+          <button type="button" onClick={onClose} disabled={pending} className="rounded-lg px-4 py-2 hover:bg-zinc-100 disabled:opacity-50 dark:hover:bg-zinc-800">
+            취소
+          </button>
+          <button type="button" onClick={() => make(price !== null)} disabled={pending || idea.trim().length < 5} className="rounded-lg bg-red-600 px-4 py-2 font-semibold text-white disabled:opacity-50">
+            {pending ? "만드는 중... (1~2분)" : price !== null ? `💎 ${price} 크레딧으로 만들기` : "초안 만들기"}
+          </button>
+        </div>
+      </div>
+    </div>
   );
 }
 

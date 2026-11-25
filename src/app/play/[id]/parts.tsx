@@ -37,8 +37,8 @@ export function ModelPicker({ models, value, disabled, onChange }: { models: Mod
       value={value}
       disabled={disabled}
       onChange={(e) => onChange(e.target.value)}
-      aria-label="AI 모델"
-      title="AI 모델 (다음 행동부터 적용)"
+      aria-label="AI 연기"
+      title="AI 연기 (다음 행동부터 적용)"
       className="rounded-full border border-zinc-200 bg-white py-1 pr-7 pl-2.5 text-xs font-medium outline-none focus:outline-none disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
     >
       {models.map((m) => (

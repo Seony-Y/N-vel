@@ -2,11 +2,11 @@ import { eq } from "drizzle-orm";
 import { z } from "zod";
 import { db } from "@/db";
 import { playSessions } from "@/db/schema";
-import { CHAT_MODELS } from "@/lib/ai/models";
+import { OFFERED_MODEL_IDS } from "@/lib/ai/models";
 import { publicState } from "@/lib/game/public";
 import { openSession } from "@/lib/game/session";
 
-const Body = z.object({ model: z.enum(CHAT_MODELS.map((m) => m.id) as [string, ...string[]]) });
+const Body = z.object({ model: z.enum(OFFERED_MODEL_IDS) });
 
 /** POST /api/play/:id/model  수사 도중 AI 모델 바꾸기. 다음 행동부터 그 모델의 크레딧으로 계산한다 */
 export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/model">) {

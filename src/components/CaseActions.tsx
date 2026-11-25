@@ -24,6 +24,7 @@ export function CaseActions({
   loggedIn,
   models,
   defaultModel,
+  defaultMode = "easy",
   size = "lg",
   retryOnly = false,
   balance,
@@ -36,6 +37,7 @@ export function CaseActions({
   loggedIn: boolean;
   models?: ModelOption[]; // 넘기면 모델 선택 상자를 보여준다 (사건 페이지)
   defaultModel?: string;
+  defaultMode?: "easy" | "hard"; // 결과 화면: 지난번 난이도 그대로
   size?: "sm" | "lg";
   retryOnly?: boolean; // 결과 화면: 다시 도전 버튼만
   guestFree?: boolean; // 로그인 없이 할 수 있는 사건 (프롤로그)
@@ -44,7 +46,7 @@ export function CaseActions({
 }) {
   const router = useRouter();
   const [model, setModel] = useState(defaultModel);
-  const [mode, setMode] = useState<"easy" | "hard">("easy");
+  const [mode, setMode] = useState<"easy" | "hard">(defaultMode);
   const [starting, setPending] = useState(false);
   const [moving, startMove] = useTransition(); // 화면이 넘어가는 동안
   const pending = starting || moving;
@@ -152,11 +154,11 @@ export function CaseActions({
       )}
       {loggedIn && models && (!ongoingId || confirmRestart) && (
         <label className="flex items-center justify-between gap-3 text-sm">
-          <span className="text-zinc-500">AI 모델</span>
+          <span className="text-zinc-500">AI 연기</span>
           <select value={model} onChange={(e) => setModel(e.target.value)} className="rounded-lg border border-zinc-300 bg-white py-1.5 pl-3 outline-none focus:outline-none dark:border-zinc-700 dark:bg-zinc-900">
             {models.map((m) => (
               <option key={m.id} value={m.id}>
-                {m.label} (행동당 {m.credits}크레딧)
+                {m.label} (행동당 💎 {m.credits})
               </option>
             ))}
           </select>
@@ -174,11 +176,11 @@ function BalanceHint({ balance, perAction }: { balance: number; perAction: numbe
   const actions = Math.floor(balance / perAction);
   return (
     <p className={`text-right text-xs ${actions === 0 ? "font-medium text-red-600" : "text-zinc-500"}`}>
-      💎 {balance.toLocaleString()} 크레딧 · 이 모델로 약 {actions.toLocaleString()}회 행동 가능
+      💎 {balance.toLocaleString()} 크레딧 · 이 설정으로 약 {actions.toLocaleString()}회 행동 가능
       {actions === 0 && (
         <>
           {" "}
-          (크레딧이 부족해요. 더 저렴한 모델을 고르거나{" "}
+          (크레딧이 부족해요. 더 저렴한 AI 연기를 고르거나{" "}
           <Link href="/my/credits#request" className="underline underline-offset-2">
             크레딧을 요청
           </Link>
