@@ -55,10 +55,10 @@ export function limitPerTurn(clues: Clue[], where?: { go: string | null; current
 }
 
 /**
- * AI 가 단서 내용을 이미 말했는데 태그를 빠뜨린 것. 단서 설명의 글자쌍이 응답에 대부분 나올 때만 인정한다
+ * AI 가 단서 내용을 이미 말했는데 태그를 빠뜨린 것. 단서 설명의 글자쌍이 응답에 충분히 나올 때만 인정한다
  * (플레이어는 이미 읽었는데 수첩에 없어서 증거로 낼 수 없는 일을 막는다)
  */
-const SPOKEN_RATIO = 0.6;
+const SPOKEN_RATIO = 0.4; // Haiku 실측: 말한 단서 47~97%, 말하지 않은 단서 최대 31%
 const SPOKEN_MIN = 12; // 이보다 짧은 설명은 우연히 겹칠 수 있어 보지 않는다
 export function spokenWithoutTag(text: string, candidates: Clue[]): Clue[] {
   const norm = (s: string) => s.replace(/[\s\p{P}\p{S}]+/gu, "");

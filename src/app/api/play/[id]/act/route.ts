@@ -156,7 +156,8 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
           found = [...found, ...accepted];
           const saved = recovered.filter((c) => accepted.includes(c));
           if (saved.length) await logEvent({ type: "recovered_clue", where, message: `태그가 빠진 단서를 인정: ${saved.map((c) => c.code).join(", ")}`, ...ctxLog, detail: { thread } });
-          const rejected = requested.filter((code) => !accepted.some((c) => c.code === code));
+          // 방금 서버가 준 증언(revealed)에 태그를 또 붙인 것, 개수 제한에 걸린 것은 규칙 위반이 아니다
+          const rejected = requested.filter((code) => ![...allowed, ...revealed].some((c) => c.code === code));
           if (rejected.length) {
             await logEvent({ type: "rejected_clue", where, message: `허용되지 않은 단서 요청: ${rejected.join(", ")}`, ...ctxLog, detail: { thread, rejected, allowed: candidates.map((c) => c.code) } });
           }

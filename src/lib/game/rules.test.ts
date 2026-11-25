@@ -75,6 +75,15 @@ test("내용을 말했는데 태그가 빠진 단서만 보완한다", () => {
   assert.deepEqual(spokenWithoutTag("벽 한 면을 채운 책장과 무거운 책상이 보인다. 빗소리가 들린다.", full.clues), []);
 });
 
+test("다른 단서를 말했을 때 엉뚱한 단서를 보완하지 않는다", () => {
+  for (const f of [full, fixture("stage-brooch")]) {
+    for (const c of f.clues) {
+      const wrong = spokenWithoutTag(c.description, f.clues.filter((x) => x !== c));
+      assert.deepEqual(codes(wrong), [], c.code);
+    }
+  }
+});
+
 test("글로 흉내 낸 증거 제시를 구분한다", () => {
   assert.ok(!stripFakePresent("[증거 제시: 화분 속 북엔드] 이거 봐").includes("[증거"));
   assert.ok(!stripFakePresent("［ 증거  제시: x]").includes("［"));
