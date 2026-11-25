@@ -16,5 +16,5 @@ export function fixture(slug: string): FullCase {
 }
 
 export function playing(over: Partial<PlaySession> = {}): PlaySession {
-  return { id: "s", model: null, currentLocationId: "L1", foundClueIds: [], brokenIds: [], hintsUsed: 0, actionsUsed: 0, ...over } as PlaySession;
+  return { id: "s", model: null, mode: "easy", currentLocationId: "L1", foundClueIds: [], brokenIds: [], hintsUsed: 0, actionsUsed: 0, ...over } as PlaySession;
 }

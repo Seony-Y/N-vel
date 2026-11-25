@@ -96,7 +96,7 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
           </div>
           {c.targetActions && (
             <p className="-mt-3 rounded-lg bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-500 dark:bg-zinc-800/50">
-              🎯 <b className="font-medium">행동</b>은 장소를 조사하거나, 용의자에게 질문하거나, 증거를 제시할 때마다 1회로 세요 (비밀번호나 단서 잇기를 틀려도 1회). 장소 이동, 수첩, 힌트는 세지 않아요.
+              🎯 <b className="font-medium">행동</b>은 장소를 조사하거나, 용의자에게 질문하거나, 증거를 제시할 때마다 1회로 세요 (비밀번호를 틀려도 1회, 어려움에서는 단서 잇기를 틀려도 1회). 장소 이동, 수첩, 힌트는 세지 않아요.
               횟수에 제한은 없고, 범인을 맞히면서 {c.targetActions}회 안에 풀면 효율 보너스 +{POINTS.efficiency}점, {Math.floor(c.targetActions * EFFICIENCY_HALF_RATIO)}회 안이면 +{POINTS.efficiency / 2}점을 받아요.
             </p>
           )}

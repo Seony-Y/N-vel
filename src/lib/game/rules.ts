@@ -65,7 +65,7 @@ export function spokenWithoutTag(text: string, candidates: Clue[]): Clue[] {
   const pairs = (s: string) => new Set(Array.from({ length: Math.max(0, s.length - 1) }, (_, i) => s.slice(i, i + 2)));
   const said = pairs(norm(text));
   return candidates.filter((c) => {
-    const want = [...pairs(norm(c.description.replace(/^[^:\n]{1,20}:\s*/, "")))]; // 증언 앞의 "이름:" 은 뺀다
+    const want = [...pairs(norm(c.holderId ? c.description.replace(/^[^:\n]{1,20}:\s*/, "") : c.description))]; // 증언 앞의 "이름:" 은 뺀다
     return want.length >= SPOKEN_MIN && want.filter((p) => said.has(p)).length / want.length >= SPOKEN_RATIO;
   });
 }
@@ -80,6 +80,12 @@ export function openableLocks(full: FullCase, session: PlaySession) {
 export function combination(full: FullCase, clueIds: string[]): Clue | null {
   const picked = new Set(clueIds);
   return full.clues.find((c) => c.combine.length > 0 && c.combine.length === picked.size && c.combine.every((id) => picked.has(id))) ?? null;
+}
+
+/** 재료를 다 찾았지만 아직 잇지 않은 연결 단서 */
+export function linksReady(full: FullCase, session: PlaySession) {
+  const found = new Set(session.foundClueIds);
+  return full.clues.filter((c) => c.combine.length > 0 && !found.has(c.id) && c.combine.every((id) => found.has(id)));
 }
 
 /** 플레이어가 글로 흉내 낸 증거 제시 표시를 바꿔 둔다. 진짜 제시는 서버가 붙인다 */

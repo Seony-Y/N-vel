@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Accusation } from "@/types/db";
 import { fixture, playing } from "./fixture";
+import { nextStep } from "./next-step";
 import { breakpointFor, combination, discoverable, grade, limitPerTurn, openableLocks, spokenWithoutTag, stripFakePresent, tellableBy, validateRequested } from "./rules";
 
 const full = fixture("storm-manor");
@@ -84,7 +85,7 @@ test("내용을 말했는데 태그가 빠진 단서만 보완한다", () => {
 });
 
 test("다른 단서를 말했을 때 엉뚱한 단서를 보완하지 않는다", () => {
-  for (const f of [full, fixture("stage-brooch")]) {
+  for (const f of [full, fixture("stage-brooch"), fixture("corner-clock")]) {
     for (const c of f.clues) {
       const wrong = spokenWithoutTag(c.description, f.clues.filter((x) => x !== c));
       assert.deepEqual(codes(wrong), [], c.code);
@@ -106,7 +107,7 @@ test("단서를 정확히 골라야 이어진다 (순서는 상관없다)", () =
 });
 
 test("공식 사건의 모든 단서는 실제로 얻을 수 있다", () => {
-  for (const slug of ["storm-manor", "stage-brooch"]) {
+  for (const slug of ["storm-manor", "stage-brooch", "corner-clock"]) {
     const f = fixture(slug);
     const s = playing();
     const add = (id: string | null | undefined) => {
@@ -154,4 +155,36 @@ test("프롤로그: 가이드만 따라가도 해결할 수 있다", () => {
   const g = grade(f, playing({ foundClueIds: found }), { culpritId: "S2", answers: f.case.quiz.map((q) => q.answer), evidenceIds: keys, narrative: "" });
   assert.equal(g.score, 100);
   assert.equal(g.ending, "correct");
+});
+
+test("쉬움 안내만 따라가면 모든 단서를 모은다", () => {
+  for (const slug of ["corner-clock", "stage-brooch", "storm-manor"]) {
+    const f = fixture(slug);
+    const s = playing();
+    for (let i = 0; i < 100; i++) {
+      const step = nextStep(f, s);
+      const left = f.clues.filter((c) => !s.foundClueIds.includes(c.id));
+      for (const c of left) if (!c.combine.length) assert.ok(!step.includes(`「${c.name}」`), "못 찾은 단서의 이름을 말하지 않는다");
+      if (step.startsWith("모을 수 있는")) break;
+      const link = f.clues.find((c) => c.combine.length && !s.foundClueIds.includes(c.id) && c.combine.every((x) => s.foundClueIds.includes(x)));
+      const shown = f.clues.find((c) => step.startsWith(`「${c.name}」`));
+      const who = f.suspects.find((x) => step.includes(x.name + "에게"));
+      const where = f.locations.find((l) => step.startsWith(`'${l.name}'`));
+      if (step.includes("단서 잇기")) s.foundClueIds.push(link!.id);
+      else if (shown) {
+        const bp = breakpointFor(f, s, who!.id, shown.id)!;
+        s.brokenIds.push(bp.id);
+        s.foundClueIds.push(bp.revealsClueId!);
+      } else if (where) s.foundClueIds.push(discoverable(f, s).find((c) => c.locationId === where.id)!.id);
+      else if (who) s.foundClueIds.push(tellableBy(f, s, who.id)[0].id);
+      else s.foundClueIds.push(openableLocks(f, s)[0].id);
+    }
+    assert.equal(s.foundClueIds.length, f.clues.length, slug);
+  }
+});
+
+test("설명에 시각(17:00)이 있어도 다른 물건을 말한 것을 그 단서로 보지 않는다", () => {
+  const f = fixture("corner-clock");
+  const said = "꽃 상자들을 하나씩 들추던 당신의 손끝에 '구본석'이라고 적힌 배달 상자가 걸린다. 상자를 열자 흰 백합 꽃다발이 나오고, 그 아래 바닥에 얇은 손수건으로 싸인 물건이 눌려 있다. 손수건을 풀자 은빛 테두리의 '은하 회중시계'가 모습을 드러낸다.";
+  assert.ok(!codes(spokenWithoutTag(said, f.clues)).includes("C4"));
 });

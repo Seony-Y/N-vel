@@ -262,6 +262,7 @@ export const playSessions = pgTable(
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
     caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
     model: text("model"),
+    mode: text("mode", { enum: ["easy", "hard"] }).notNull().default("easy"), // 쉬움: 무료 안내, 이을 단서 알림, 잇기 실패에 행동을 세지 않음
     status: text("status", { enum: ["playing", "finished"] }).notNull().default("playing"),
     currentLocationId: uuid("current_location_id"),
     actionsUsed: integer("actions_used").notNull().default(0),

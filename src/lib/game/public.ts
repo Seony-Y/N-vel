@@ -1,7 +1,8 @@
 import type { GuideStep } from "@/db/schema";
 import type { PlayMessage, PlaySession } from "@/types/db";
 import type { FullCase } from "./load";
-import { MAX_HINTS, openableLocks } from "./rules";
+import { nextStep } from "./next-step";
+import { linksReady, MAX_HINTS, openableLocks } from "./rules";
 
 /*
  * 화면으로 보내도 되는 값만 골라낸다.
@@ -28,7 +29,9 @@ export interface PublicState {
   hintsTotal: number;
   foundClues: PublicClue[];
   locks: { clueId: string; label: string; locationId: string }[]; // 아직 안 열린 잠금 장치
-  links: { found: number; total: number }; // 단서 연결: 찾은 수 / 전체
+  mode: PlaySession["mode"];
+  links: { found: number; total: number; ready: boolean }; // 단서 연결: 찾은 수 / 전체 / 지금 이을 수 있는 게 있는지 (쉬움에서만 알려 준다)
+  nextStep: string | null; // 쉬움: 막혔을 때 보는 무료 안내
   notes: string;
 }
 
@@ -107,7 +110,9 @@ export function publicState(full: FullCase, s: PlaySession): PublicState {
     hintsTotal: Math.min(full.case.hints.length, MAX_HINTS), // 예전에 4개 넘게 넣은 사건도 4개까지만
     foundClues,
     locks: openableLocks(full, s).map((c) => ({ clueId: c.id, label: c.lockLabel ?? "잠긴 물건", locationId: c.locationId! })),
-    links: { found: full.clues.filter((c) => c.combine.length && s.foundClueIds.includes(c.id)).length, total: full.clues.filter((c) => c.combine.length).length },
+    links: { found: full.clues.filter((c) => c.combine.length && s.foundClueIds.includes(c.id)).length, total: full.clues.filter((c) => c.combine.length).length, ready: s.mode === "easy" && linksReady(full, s).length > 0 },
+    mode: s.mode,
+    nextStep: s.mode === "easy" && !(full.case.isOfficial && full.case.script.length) ? nextStep(full, s) : null,
     notes: s.notes,
   };
 }

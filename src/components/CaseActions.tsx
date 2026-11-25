@@ -40,6 +40,7 @@ export function CaseActions({
 }) {
   const router = useRouter();
   const [model, setModel] = useState(defaultModel);
+  const [mode, setMode] = useState<"easy" | "hard">("easy");
   const [pending, setPending] = useState(false);
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -54,7 +55,7 @@ export function CaseActions({
     const res = await fetch("/api/play", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ caseId, model, restart }),
+      body: JSON.stringify({ caseId, model, mode, restart }),
     });
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
@@ -113,6 +114,23 @@ export function CaseActions({
         </div>
       )}
 
+      {loggedIn && models && (!ongoingId || confirmRestart) && (
+        <fieldset className="grid grid-cols-2 gap-2 text-sm">
+          <legend className="sr-only">난이도</legend>
+          {(
+            [
+              ["easy", "🙂 쉬움", "막히면 다음에 할 일을 무료로 알려 줘요"],
+              ["hard", "🔥 어려움", "안내 없이 혼자 풀어요"],
+            ] as const
+          ).map(([id, label, hint]) => (
+            <label key={id} className={`cursor-pointer rounded-xl border-2 px-3 py-2 ${mode === id ? "border-red-600 bg-red-50 dark:bg-red-950/30" : "border-zinc-200 dark:border-zinc-700"}`}>
+              <input type="radio" name="mode" className="sr-only" checked={mode === id} onChange={() => setMode(id)} />
+              <span className="font-medium">{label}</span>
+              <span className="block text-xs text-zinc-500">{hint}</span>
+            </label>
+          ))}
+        </fieldset>
+      )}
       {loggedIn && models && (!ongoingId || confirmRestart) && (
         <label className="flex items-center justify-between gap-3 text-sm">
           <span className="text-zinc-500">AI 모델</span>

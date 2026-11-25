@@ -1,0 +1,1 @@
+ALTER TABLE "play_sessions" ADD COLUMN "mode" text DEFAULT 'easy' NOT NULL;

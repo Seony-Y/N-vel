@@ -10,6 +10,7 @@ import { addMessages } from "@/lib/game/session";
 const Body = z.object({
   caseId: z.uuid(),
   model: z.enum(CHAT_MODELS.map((m) => m.id) as [string, ...string[]]).optional(),
+  mode: z.enum(["easy", "hard"]).default("easy"),
   restart: z.boolean().default(false), // true 면 진행 중인 기록은 지우고 새로 시작
 });
 
@@ -20,7 +21,7 @@ export async function POST(request: Request) {
 
   const parsed = Body.safeParse(await request.json().catch(() => null));
   if (!parsed.success) return Response.json({ error: "잘못된 요청" }, { status: 400 });
-  const { caseId, model, restart } = parsed.data;
+  const { caseId, model, mode, restart } = parsed.data;
 
   const full = await loadCase(caseId);
   if (!full || !canPlay(full.case, userId)) return Response.json({ error: "사건을 찾을 수 없습니다" }, { status: 404 });
@@ -43,7 +44,7 @@ export async function POST(request: Request) {
   const first = full.locations[0];
   const [session] = await db
     .insert(playSessions)
-    .values({ userId, caseId, model: model ?? DEFAULT_CHAT_MODEL, currentLocationId: first?.id ?? null })
+    .values({ userId, caseId, model: model ?? DEFAULT_CHAT_MODEL, mode, currentLocationId: first?.id ?? null })
     .returning({ id: playSessions.id });
   if (first) await addMessages(session.id, "narrator", [{ role: "event", content: `📍 ${first.name}\n${first.description}` }]);
 

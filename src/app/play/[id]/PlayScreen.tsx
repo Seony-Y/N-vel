@@ -241,7 +241,7 @@ export function PlayScreen({
       const r = (await post("combine", { clueIds })) as { ok: boolean; clueId?: string; events: string[]; state: PublicState };
       setState(r.state);
       pushLocal(...r.events.map((content) => ({ thread: "narrator", role: "event" as const, content })));
-      flash(r.ok ? "🧩 단서가 이어졌어요!" : "아직 맞물리지 않아요 (행동 1회로 셌어요)");
+      flash(r.ok ? "🧩 단서가 이어졌어요!" : state.mode === "hard" ? "아직 맞물리지 않아요 (행동 1회로 셌어요)" : "아직 맞물리지 않아요");
       if (r.ok) setOpenClue(r.state.foundClues.find((c) => c.id === r.clueId) ?? null);
       return r.ok;
     } catch (e) {
@@ -763,7 +763,7 @@ function ActionsBadge({ used, target }: { used: number; target: number | null })
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = useDismiss<HTMLSpanElement>(open, close);
-  const counted = "조사·질문·증거 제시 1번이 행동 1회예요 (비밀번호나 단서 잇기를 틀려도 1회). 장소 이동, 메모, 힌트, 추리 제출은 세지 않아요.";
+  const counted = "조사·질문·증거 제시 1번이 행동 1회예요 (비밀번호를 틀려도 1회, 어려움에서는 단서 잇기를 틀려도 1회). 장소 이동, 메모, 힌트, 추리 제출은 세지 않아요.";
   const over = !!target && used > target;
   return (
     <span ref={ref} className="relative inline-block" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
@@ -999,6 +999,7 @@ function Notebook({
   // 단서 연결: 고르는 중이면 고른 단서 id 목록, 아니면 null
   const [linking, setLinking] = useState<string[] | null>(null);
   const [pending, setPending] = useState(false);
+  const [showStep, setShowStep] = useState(false);
   const toggle = (id: string) => setLinking((l) => l && (l.includes(id) ? l.filter((x) => x !== id) : l.length < 3 ? [...l, id] : l));
 
   return (
@@ -1012,9 +1013,10 @@ function Notebook({
             </button>
           )}
         </div>
+        {!linking && state.links.ready && <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">🧩 지금 이을 수 있는 단서가 있어요!</p>}
         {linking && (
           <div className="mb-2 space-y-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-            <p>함께 보면 새로운 사실이 드러나는 단서 2~3개를 고르세요. 맞으면 새 단서를 얻고, 틀리면 행동 1회로 세요. 크레딧은 들지 않아요.</p>
+            <p>함께 보면 새로운 사실이 드러나는 단서 2~3개를 고르세요. 맞으면 새 단서를 얻고{state.mode === "hard" ? ", 틀리면 행동 1회로 세요" : ", 틀려도 괜찮아요"}. 크레딧은 들지 않아요.</p>
             <button
               type="button"
               disabled={linking.length < 2 || pending}
@@ -1048,6 +1050,16 @@ function Notebook({
           </ul>
         )}
       </div>
+
+      {/* 쉬움: 막혔을 때 다음에 할 일 (무료, 감점 없음) */}
+      {state.nextStep && (
+        <div>
+          <button type="button" onClick={() => setShowStep((v) => !v)} aria-expanded={showStep} className="w-full rounded-lg border border-emerald-400 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-950/30">
+            🧭 막혔어요, 뭘 할까요? (무료)
+          </button>
+          {showStep && <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm leading-relaxed text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">{state.nextStep}</p>}
+        </div>
+      )}
 
       {statements.length > 0 && (
         <div>

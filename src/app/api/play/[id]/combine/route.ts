@@ -7,7 +7,7 @@ const Body = z.object({ clueIds: z.array(z.uuid()).min(2).max(3) });
 
 /**
  * POST /api/play/:id/combine  { clueIds }  수첩의 단서 2~3개를 잇는다.
- * 맞으면 연결 단서를 얻고, 틀리면 행동 1회로 센다 (마구 이어 맞히면 효율 보너스를 잃도록). AI 를 쓰지 않아 크레딧은 들지 않는다
+ * 맞으면 연결 단서를 얻고, 틀리면 행동 1회로 센다 (마구 이어 맞히면 효율 보너스를 잃도록. 쉬움에서는 세지 않는다). AI 를 쓰지 않아 크레딧은 들지 않는다
  */
 export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/combine">) {
   const { id } = await ctx.params;
@@ -26,7 +26,7 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/c
   const clue = combination(full, clueIds);
   if (!clue) {
     const event = `🧩 ${names}: 아직 맞물리지 않습니다`;
-    session = await addProgress(id, { actions: 1 });
+    session = await addProgress(id, { actions: session.mode === "hard" ? 1 : 0 });
     await addMessages(id, "narrator", [{ role: "event", content: event }]);
     return Response.json({ ok: false, events: [event], state: publicState(full, session) });
   }

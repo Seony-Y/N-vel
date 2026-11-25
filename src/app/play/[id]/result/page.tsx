@@ -6,6 +6,7 @@ import { CaseActions } from "@/components/CaseActions";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
 import { requireUserId } from "@/lib/auth";
+import { findNextCase } from "@/lib/game/catalog";
 import { loadCase, loadSession } from "@/lib/game/load";
 import { ENDINGS } from "@/lib/game/endings";
 import { buildReveal } from "@/lib/game/reveal";
@@ -79,7 +80,7 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
   if (session.status !== "finished") redirect(`/play/${id}`);
 
   // 진상 공개는 사건을 끝낸 본인에게만. 사건이 비공개로 바뀌었어도 결과는 볼 수 있다
-  const full = await loadCase(session.caseId);
+  const [full, next] = await Promise.all([loadCase(session.caseId), findNextCase(userId, session.caseId)]);
   if (!full) notFound();
   const c = full.case;
   // 포기한 수사는 제출한 추리가 없다
@@ -96,6 +97,7 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
         <h1 className="mt-1 text-3xl font-bold">
           {ENDINGS[ending].icon} {ENDINGS[ending].title}
         </h1>
+        {session.mode === "hard" && <p className="mt-2 text-xs opacity-80">🔥 어려움</p>}
         {session.isRetry && <p className="mt-2 text-xs opacity-80">🔁 재도전 기록 (진상을 본 뒤의 도전이라 통계에는 들어가지 않아요)</p>}
         {g ? (
           <>
@@ -122,6 +124,17 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
       </section>
 
       {endingText && <p className="whitespace-pre-wrap rounded-2xl border border-zinc-200 bg-white p-6 leading-relaxed dark:border-zinc-800 dark:bg-zinc-900">{endingText}</p>}
+
+      {next && (
+        <Link href={`/cases/${next.id}`} className="flex items-center justify-between gap-3 rounded-2xl border-2 border-red-600 bg-white p-5 hover:bg-red-50 dark:bg-zinc-900 dark:hover:bg-red-950/30">
+          <span className="min-w-0">
+            <span className="block text-xs font-semibold text-red-600">다음 사건 · 난이도 {next.difficulty} · 약 {next.estimatedMinutes}분</span>
+            <span className="mt-0.5 block font-bold">{next.title}</span>
+            <span className="mt-0.5 block text-sm text-zinc-500">{next.tagline}</span>
+          </span>
+          <span className="shrink-0 text-xl" aria-hidden>›</span>
+        </Link>
+      )}
 
       {/* 내 추리 vs 정답 */}
       {g && (

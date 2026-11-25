@@ -22,10 +22,10 @@ export type CaseListItem = Awaited<ReturnType<typeof listPublicCases>>[number];
 export const CASE_SORTS = { recommended: "추천", latest: "최신순", easy: "쉬운 순", hard: "어려운 순" } as const;
 export type CaseSort = keyof typeof CASE_SORTS;
 
-/** 공개 사건 목록. 추천: 공식 사건 먼저 → 최신 */
+/** 공개 사건 목록. 추천: 공식 사건을 쉬운 것부터 → 최신 */
 export async function listPublicCases(sort: CaseSort = "recommended") {
   const order = {
-    recommended: [desc(cases.isOfficial), desc(cases.updatedAt)],
+    recommended: [desc(cases.isOfficial), sql`case when ${cases.isOfficial} then ${cases.difficulty} end`, sql`case when ${cases.isOfficial} then ${cases.estimatedMinutes} end`, desc(cases.updatedAt)],
     latest: [desc(cases.createdAt)],
     easy: [asc(cases.difficulty), desc(cases.createdAt)],
     hard: [desc(cases.difficulty), desc(cases.createdAt)],
@@ -40,6 +40,25 @@ export async function findPrologue() {
     .from(cases)
     .where(and(eq(cases.isPublic, true), isNull(cases.hiddenAt), eq(cases.isOfficial, true), sql`jsonb_array_length(${cases.guide}) > 0`))
     .orderBy(asc(cases.createdAt))
+    .limit(1);
+  return row ?? null;
+}
+
+/** 다음에 풀 사건 하나: 아직 끝내지 않은 공식 사건 중 가장 쉽고 짧은 것 */
+export async function findNextCase(userId: string, currentCaseId: string) {
+  const [row] = await db
+    .select(listCols)
+    .from(cases)
+    .where(
+      and(
+        eq(cases.isPublic, true),
+        isNull(cases.hiddenAt),
+        eq(cases.isOfficial, true),
+        sql`${cases.id} <> ${currentCaseId}`,
+        sql`not exists (select 1 from ${playSessions} where ${playSessions.caseId} = ${cases.id} and ${playSessions.userId} = ${userId} and ${playSessions.status} = 'finished')`,
+      ),
+    )
+    .orderBy(asc(cases.difficulty), asc(cases.estimatedMinutes))
     .limit(1);
   return row ?? null;
 }
