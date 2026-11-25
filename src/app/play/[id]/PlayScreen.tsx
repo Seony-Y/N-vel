@@ -371,7 +371,7 @@ export function PlayScreen({
               <button
                 key={l.id}
                 onClick={() => move(l.id)}
-                className={`rounded-lg px-3 py-2 text-left text-sm transition ${active ? "bg-red-600 text-white" : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700"}`}
+                className={`rounded-lg px-3 py-2 text-left text-sm transition ${active ? "bg-zinc-200 font-medium shadow-[inset_3px_0_0_var(--color-red-500)] dark:bg-zinc-700" : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700"}`}
               >
                 {l.name}
                 {l.id === state.currentLocationId && !active && <span className="ml-1 text-xs text-zinc-400">(현재)</span>}
@@ -390,10 +390,10 @@ export function PlayScreen({
                 setTarget(s.id);
                 setMobileTab("play");
               }}
-              className={`rounded-lg px-3 py-2 text-left text-sm transition ${target === s.id ? "bg-red-600 text-white" : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700"}`}
+              className={`rounded-lg px-3 py-2 text-left text-sm transition ${target === s.id ? "bg-zinc-200 font-medium shadow-[inset_3px_0_0_var(--color-red-500)] dark:bg-zinc-700" : "bg-zinc-100 hover:bg-zinc-200 dark:bg-zinc-800 dark:hover:bg-zinc-700"}`}
             >
               <div>{s.name}</div>
-              <div className={`hidden text-xs lg:block ${target === s.id ? "text-red-100" : "text-zinc-500"}`}>{s.role}</div>
+              <div className={`hidden text-xs lg:block ${target === s.id ? "text-zinc-600 dark:text-zinc-300" : "text-zinc-500"}`}>{s.role}</div>
             </button>
           ))}
         </div>
@@ -569,7 +569,7 @@ export function PlayScreen({
               const el = e.currentTarget;
               stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM;
             }}
-            className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4"
+            className="min-h-0 flex-1 space-y-4 overflow-y-auto px-4 py-5 sm:px-5"
           >
             {threadMessages.length === 0 && (
               <p className="py-8 text-center text-sm text-zinc-400">{suspect ? `${suspect.name}에게 질문해 보세요. 수첩의 단서를 증거로 제시할 수도 있어요.` : data.scripted ? "아래 선택지에서 할 행동을 골라 보세요." : "무엇을 조사할지 입력해 보세요. 예) 책상 서랍을 열어본다"}</p>
@@ -642,7 +642,7 @@ export function PlayScreen({
                       disabled={busy}
                       onClick={() => act(s)}
                       title={data.scripted ? "고르기" : `보내기 (💎 ${creditsPerAction})`}
-                      className="max-w-[85%] rounded-2xl rounded-br-sm border border-red-300 bg-red-50 px-3 py-1.5 text-left text-sm text-red-800 hover:bg-red-100 disabled:opacity-50 dark:border-red-900 dark:bg-red-950/30 dark:text-red-200 dark:hover:bg-red-950/60"
+                      className="max-w-[85%] rounded-2xl rounded-br-sm border border-zinc-300 px-3 py-1.5 text-left text-sm text-zinc-700 hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:text-zinc-200 dark:hover:bg-zinc-800"
                     >
                       {s}
                     </button>
@@ -722,7 +722,7 @@ export function PlayScreen({
         </section>
 
         <div className="shrink-0">
-          <button onClick={openAccuse} className="w-full rounded-xl bg-red-600 py-3 font-semibold text-white shadow-sm hover:bg-red-700">
+          <button onClick={openAccuse} className="w-full rounded-xl border border-red-300 bg-red-50 py-3 font-semibold text-red-800 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-950">
             ⚖️ 추리 제출
           </button>
           <button onClick={() => setConfirmGiveUp(true)} className="mx-auto mt-3 block px-3 py-1 text-center text-xs text-zinc-400 hover:text-zinc-600 dark:text-zinc-500 dark:hover:text-zinc-300">

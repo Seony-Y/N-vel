@@ -94,7 +94,7 @@ function GuestResultView({ title, done, next, onAgain }: { title: string; done: 
         </Link>
       </section>
 
-      {result.reveal.endingText && <p className="whitespace-pre-wrap rounded-2xl border border-zinc-200 bg-white p-6 leading-relaxed dark:border-zinc-800 dark:bg-zinc-900">{result.reveal.endingText}</p>}
+      {result.reveal.endingText && <p className="whitespace-pre-wrap rounded-2xl border font-serif border-zinc-200 bg-white p-6 leading-relaxed dark:border-zinc-800 dark:bg-zinc-900">{result.reveal.endingText}</p>}
 
       {result.items.length > 0 && (
         <ul className="space-y-2 rounded-2xl border border-zinc-200 bg-white p-5 text-sm dark:border-zinc-800 dark:bg-zinc-900">

@@ -194,9 +194,10 @@ export const Bubble = memo(function Bubble({ m, name }: { m: PublicMessage; name
     return <div className="mx-auto max-w-md whitespace-pre-wrap rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{m.content}</div>;
   }
   const mine = m.role === "user";
+  // 나레이션은 말풍선 없이 책처럼, 대화는 말풍선으로
   return (
     <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${mine ? "rounded-br-sm bg-red-600 text-white" : "rounded-bl-sm bg-zinc-100 dark:bg-zinc-800"}`}>
+      <div className={`whitespace-pre-wrap text-[15px] leading-[1.75] ${mine ? "max-w-[85%] rounded-2xl rounded-br-sm bg-bubble px-4 py-2.5" : name ? "max-w-[85%] rounded-2xl rounded-bl-sm bg-zinc-100 px-4 py-2.5 dark:bg-zinc-800" : "max-w-[42rem] px-1 font-serif"}`}>
         {!mine && name && <div className="mb-0.5 text-xs font-semibold text-zinc-500">{name}</div>}
         {mine ? m.content : splitProse(m.content).map((p, i) => (p.action ? <em key={i} className="text-zinc-500 dark:text-zinc-400">{p.text}</em> : p.text))}
       </div>
@@ -464,7 +465,7 @@ export function StoryModal({ data, onClose }: { data: PublicCase; onClose: () =>
     <Modal title={`📁 ${data.title}`} onClose={onClose}>
       {data.tagline && <p className="mb-4 text-sm text-zinc-500">{data.tagline}</p>}
       <h3 className="mb-1 text-sm font-semibold text-zinc-500">사건 개요</h3>
-      <p className="whitespace-pre-wrap leading-relaxed">{data.briefing}</p>
+      <p className="whitespace-pre-wrap font-serif leading-[1.8]">{data.briefing}</p>
       {data.victim && (
         <>
           <h3 className="mb-1 mt-5 text-sm font-semibold text-zinc-500">피해자</h3>

@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { CaseActions } from "@/components/CaseActions";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { coverBackground } from "@/lib/cover";
 import type { CaseListItem, CaseProgress } from "@/lib/game/catalog";
 import { ENDINGS } from "@/lib/game/endings";
 
@@ -30,21 +31,21 @@ export function ProgressBadge({ p }: { p: CaseProgress | undefined }) {
 
 export function CaseCard({ c, progress, loggedIn, favorite = false }: { c: CaseListItem; progress?: CaseProgress; loggedIn: boolean; favorite?: boolean }) {
   return (
-    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white transition hover:border-red-300 hover:shadow-md dark:border-zinc-800 dark:bg-zinc-900">
+    <div className="relative flex flex-col overflow-hidden rounded-2xl border border-zinc-200 bg-white transition hover:border-zinc-400 hover:shadow-md dark:hover:border-zinc-600 dark:border-zinc-800 dark:bg-zinc-900">
       <Link href={`/cases/${c.id}`} className="group flex-1">
-        <div className="relative h-36 bg-gradient-to-br from-zinc-800 via-zinc-900 to-red-950">
+        <div className="relative h-36" style={{ background: coverBackground(c.id) }}>
           {c.coverImage && (
             // eslint-disable-next-line @next/next/no-img-element
             <img src={c.coverImage} alt="" referrerPolicy="no-referrer" className="h-full w-full object-cover opacity-80" />
           )}
           <div className="absolute left-3 right-14 top-3 flex flex-wrap gap-1.5 text-[11px] font-semibold">
-            {c.isOfficial && <span className="rounded bg-red-600 px-1.5 py-0.5 text-white">공식</span>}
+            {c.isOfficial && <span className="rounded bg-black/50 px-1.5 py-0.5 text-white">공식</span>}
             {c.hasGuide && <span className="rounded bg-emerald-600 px-1.5 py-0.5 text-white">🧭 가이드</span>}
-            {c.isFree && <span className="rounded bg-amber-500 px-1.5 py-0.5 text-white">🎁 무료</span>}
+            {c.isFree && <span className="rounded bg-amber-600 px-1.5 py-0.5 text-white">🎁 무료</span>}
             <span className="rounded bg-black/60 px-1.5 py-0.5 text-white">{RATING_LABEL[c.rating]}</span>
             <ProgressBadge p={progress} />
           </div>
-          <div className="absolute bottom-3 left-3 right-3 text-lg font-bold text-white drop-shadow">{c.title}</div>
+          <div className="absolute bottom-3 left-3 right-3 font-serif text-xl font-bold text-white drop-shadow">{c.title}</div>
         </div>
         <div className="p-4 pb-3">
           <p className="line-clamp-2 text-sm text-zinc-600 group-hover:text-zinc-900 dark:text-zinc-400 dark:group-hover:text-zinc-200">{c.tagline}</p>

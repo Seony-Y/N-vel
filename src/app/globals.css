@@ -1,25 +1,127 @@
 @import "tailwindcss";
 
+/*
+ * 색: 오래 읽어도 눈이 편하도록 순검정·순백·원색을 쓰지 않는다.
+ * Tailwind 색 이름은 그대로 두고 값만 바꾼다 (zinc 잉크색, red 와인색(주 버튼), amber 놋쇠색, emerald 이끼색).
+ * 글자색은 밝은 화면과 어두운 화면에서 필요한 밝기가 달라 --text-* 로 따로 정한다 (본문 4.5:1 이상)
+ */
 :root {
-  --background: #fafafa;
-  --foreground: #18181b;
-  --scrollbar-thumb: rgb(161 161 170 / 0.45); /* zinc-400 */
-  --scrollbar-thumb-hover: rgb(113 113 122 / 0.75); /* zinc-500 */
+  --background: #f1efea;
+  --foreground: #272d35;
+  --card: #faf8f3;
+  --text-muted: #5b626b;
+  --text-faint: #626973;
+  --text-accent: #8f4146;
+  --text-warm: #80622f;
+  --text-good: #3f6950;
+  --bubble: #dfe3e6;
+  --scrollbar-thumb: rgb(134 142 152 / 0.45);
+  --scrollbar-thumb-hover: rgb(89 97 108 / 0.7);
+}
+
+@theme {
+  --color-zinc-50: #f5f3ee;
+  --color-zinc-100: #e6e4dd;
+  --color-zinc-200: #d8d6cf;
+  --color-zinc-300: #c7c6c0;
+  --color-zinc-400: #a3a8ae;
+  --color-zinc-500: #868e98;
+  --color-zinc-600: #59616c;
+  --color-zinc-700: #3b434e;
+  --color-zinc-800: #272d35;
+  --color-zinc-900: #1c2127;
+  --color-zinc-950: #161a20;
+  --color-red-50: #f8eeec;
+  --color-red-100: #f1dfdc;
+  --color-red-200: #e6c9c5;
+  --color-red-300: #d9aaa6;
+  --color-red-400: #c98783;
+  --color-red-500: #b0605f;
+  --color-red-600: #8f4146;
+  --color-red-700: #7a363b;
+  --color-red-800: #632d32;
+  --color-red-900: #4c2529;
+  --color-red-950: #371d21;
+  --color-amber-50: #f7f1e3;
+  --color-amber-100: #eee3c8;
+  --color-amber-200: #e0cfa5;
+  --color-amber-300: #cfb67e;
+  --color-amber-400: #bd9c5f;
+  --color-amber-500: #a9854a;
+  --color-amber-600: #80622f;
+  --color-amber-700: #6b5228;
+  --color-amber-800: #594527;
+  --color-amber-900: #43351f;
+  --color-amber-950: #302718;
+  --color-emerald-50: #edf3ee;
+  --color-emerald-100: #dbe8de;
+  --color-emerald-200: #bfd6c5;
+  --color-emerald-300: #9cbfa7;
+  --color-emerald-400: #7aa389;
+  --color-emerald-500: #5c8a6f;
+  --color-emerald-600: #477158;
+  --color-emerald-700: #3b5d49;
+  --color-emerald-800: #304b3c;
+  --color-emerald-900: #263b30;
+  --color-emerald-950: #1d2d26;
+  --color-blue-50: #eef2f6;
+  --color-blue-100: #dde5ed;
+  --color-blue-200: #c2d0de;
+  --color-blue-300: #a0b5ca;
+  --color-blue-400: #7b95b0;
+  --color-blue-500: #5f7b98;
+  --color-blue-600: #4a647f;
+  --color-blue-700: #3d5269;
+  --color-blue-800: #324356;
+  --color-blue-900: #283543;
+  --color-blue-950: #1e2732;
 }
 
 @theme inline {
   --color-background: var(--background);
   --color-foreground: var(--foreground);
-  /* 한글은 OS 기본 고딕 (Windows: 맑은 고딕, Mac: Apple SD 산돌고딕) */
-  --font-sans: system-ui, -apple-system, "Apple SD Gothic Neo", "Malgun Gothic", "Segoe UI", sans-serif;
+  --color-bubble: var(--bubble);
+  --background-color-white: var(--card);
+  --text-color-white: #f4f1ea;
+  --text-color-zinc-400: var(--text-faint);
+  --text-color-zinc-500: var(--text-muted);
+  --text-color-red-500: var(--text-accent);
+  --text-color-red-600: var(--text-accent);
+  --text-color-amber-500: var(--text-warm);
+  --text-color-amber-600: var(--text-warm);
+  --text-color-emerald-600: var(--text-good);
+  /* 본문 고딕, 제목과 나레이션은 소설책 같은 명조. 글꼴을 받기 전에는 OS 글꼴로 보인다 */
+  --font-sans: -apple-system, "Apple SD Gothic Neo", var(--font-noto-sans), system-ui, "Malgun Gothic", sans-serif; /* 아이폰·맥은 기본 고딕을 쓰고 내려받지 않는다 */
+  --font-serif: var(--font-noto-serif), "Nanum Myeongjo", "Batang", serif;
 }
 
 @media (prefers-color-scheme: dark) {
   :root {
-    --background: #09090b;
-    --foreground: #f4f4f5;
-    --scrollbar-thumb: rgb(82 82 91 / 0.6); /* zinc-600 */
-    --scrollbar-thumb-hover: rgb(113 113 122 / 0.85); /* zinc-500 */
+    --background: #14181d;
+    --foreground: #dedcd5;
+    --text-muted: #9aa2ac;
+    --text-faint: #929aa4;
+    --text-accent: #d8a19c;
+    --text-warm: #cfb67e;
+    --text-good: #9cbfa7;
+    --bubble: #35424f;
+    --scrollbar-thumb: rgb(89 97 108 / 0.6);
+    --scrollbar-thumb-hover: rgb(134 142 152 / 0.7);
+  }
+  input,
+  select,
+  textarea {
+    color-scheme: dark;
+  }
+}
+
+@layer base {
+  h1 {
+    font-family: var(--font-serif);
+  }
+  input[type="checkbox"],
+  input[type="radio"] {
+    accent-color: var(--color-red-500);
   }
 }
 
@@ -85,7 +187,7 @@ textarea:disabled {
 /* 선택 상자: 브라우저 기본 화살표는 오른쪽 끝에 붙어 있어 직접 그린다 (오른쪽에서 0.75rem 띄움) */
 select {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%2371717a' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 20 20' fill='none' stroke='%23868e98' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M6 8l4 4 4-4'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 0.75rem center;
   background-size: 1rem;

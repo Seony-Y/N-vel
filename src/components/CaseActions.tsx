@@ -88,7 +88,8 @@ export function CaseActions({
   }, []);
 
   const big = size === "lg";
-  const primary = `whitespace-nowrap rounded-xl bg-red-600 font-semibold text-white hover:bg-red-700 disabled:opacity-60 ${big ? "flex-1 py-3" : "flex-1 px-3 py-2 text-sm"}`;
+  // 카드가 여럿 놓이는 목록에서는 꽉 찬 색이 눈에 부담스러워 옅게
+  const primary = `flex-1 whitespace-nowrap rounded-xl font-semibold disabled:opacity-60 ${big ? "bg-red-600 py-3 text-white hover:bg-red-700" : "border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-800 hover:bg-red-100 dark:border-red-900 dark:bg-red-950/50 dark:text-red-200 dark:hover:bg-red-950"}`;
   const secondary = `whitespace-nowrap rounded-xl border border-zinc-300 font-medium hover:bg-zinc-100 disabled:opacity-60 dark:border-zinc-700 dark:hover:bg-zinc-800 ${big ? "px-4 py-3 text-sm" : "px-3 py-2 text-sm"}`;
 
   return (

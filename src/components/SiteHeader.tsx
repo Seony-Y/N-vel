@@ -15,9 +15,9 @@ const linkClass = "shrink-0 rounded-lg px-2 py-1.5 text-sm text-zinc-600 hover:b
  */
 export function SiteHeader() {
   return (
-    <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-zinc-200 bg-white/80 px-3 py-2.5 backdrop-blur sm:px-6 dark:border-zinc-800 dark:bg-zinc-950/80">
+    <header className="sticky top-0 z-20 flex items-center justify-between gap-2 border-b border-zinc-200 bg-background/85 px-3 py-2.5 backdrop-blur sm:px-6 dark:border-zinc-800">
       <nav className="flex min-w-0 items-center gap-1 sm:gap-2">
-        <Link href="/" className="mr-1 shrink-0 text-lg font-bold tracking-tight">
+        <Link href="/" className="mr-1 shrink-0 font-serif text-lg font-bold tracking-tight">
           N-vel
         </Link>
         <Link href="/" className={linkClass}>

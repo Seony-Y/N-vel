@@ -127,7 +127,7 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
         )}
       </section>
 
-      {endingText && <p className="whitespace-pre-wrap rounded-2xl border border-zinc-200 bg-white p-6 leading-relaxed dark:border-zinc-800 dark:bg-zinc-900">{endingText}</p>}
+      {endingText && <p className="whitespace-pre-wrap rounded-2xl font-serif border border-zinc-200 bg-white p-6 leading-relaxed dark:border-zinc-800 dark:bg-zinc-900">{endingText}</p>}
 
       {next && (
         <Link href={`/cases/${next.id}`} className="flex items-center justify-between gap-3 rounded-2xl border-2 border-red-600 bg-white p-5 hover:bg-red-50 dark:bg-zinc-900 dark:hover:bg-red-950/30">

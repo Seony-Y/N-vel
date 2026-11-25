@@ -76,10 +76,10 @@ async function CaseList({ searchParams }: { searchParams: PageProps<"/">["search
 
 function PrologueBanner({ c, ongoingId, loggedIn }: { c: CaseListItem; ongoingId: string | null; loggedIn: boolean }) {
   return (
-    <section className="mt-10 rounded-2xl border-2 border-emerald-500 bg-emerald-50 p-5 sm:flex sm:items-center sm:gap-6 dark:bg-emerald-950/30">
+    <section className="mt-10 rounded-2xl border border-emerald-300 bg-emerald-50 p-5 sm:flex sm:items-center sm:gap-6 dark:border-emerald-900 dark:bg-emerald-950/40">
       <div className="min-w-0 flex-1">
         <p className="text-xs font-semibold text-emerald-700 dark:text-emerald-300">🧭 처음이라면 여기서부터{c.isFree && " · 🎁 무료"}</p>
-        <Link href={`/cases/${c.id}`} className="mt-1 block text-xl font-bold hover:text-red-600">
+        <Link href={`/cases/${c.id}`} className="mt-1 block font-serif text-xl font-bold hover:text-red-600">
           {c.title}
         </Link>
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{c.tagline}</p>

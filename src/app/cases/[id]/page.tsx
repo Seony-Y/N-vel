@@ -10,6 +10,7 @@ import { ReportCase } from "@/components/ReportCase";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
+import { coverBackground } from "@/lib/cover";
 import { DEFAULT_CHAT_MODEL, OFFERED_MODELS } from "@/lib/ai/models";
 import { getUserId, isAdmin } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
@@ -92,9 +93,9 @@ async function CaseDetail({ params, searchParams }: Pick<PageProps<"/cases/[id]"
             </div>
           </>
         ) : (
-          <div className="bg-gradient-to-br from-zinc-800 via-zinc-900 to-red-950 px-6 py-10 text-white">
+          <div className="px-6 py-12 text-white" style={{ background: coverBackground(c.id) }}>
             <div className="flex gap-1.5 text-[11px] font-semibold">
-              {c.isOfficial && <span className="rounded bg-red-600 px-1.5 py-0.5">공식</span>}
+              {c.isOfficial && <span className="rounded bg-black/50 px-1.5 py-0.5">공식</span>}
               <span className="rounded bg-white/20 px-1.5 py-0.5">{RATING_LABEL[c.rating]}</span>
             </div>
             <h1 className="mt-3 text-3xl font-bold">{c.title}</h1>
@@ -125,7 +126,7 @@ async function CaseDetail({ params, searchParams }: Pick<PageProps<"/cases/[id]"
 
           <section>
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">사건 개요</h2>
-            <p className="whitespace-pre-wrap leading-relaxed">{c.briefing}</p>
+            <p className="whitespace-pre-wrap font-serif leading-[1.8]">{c.briefing}</p>
           </section>
 
           {c.victim && (
