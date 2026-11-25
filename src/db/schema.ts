@@ -191,7 +191,7 @@ export const suspects = pgTable(
   (t) => [unique().on(t.caseId, t.code)],
 );
 
-// 단서. 장소에 있거나(locationId) 용의자가 증언으로 준다(holderId)
+// 단서. 장소에 있거나(locationId), 용의자가 증언으로 주거나(holderId), 다른 단서를 이어서 얻는다(combine)
 export const clues = pgTable(
   "clues",
   {
@@ -207,6 +207,7 @@ export const clues = pgTable(
     holderId: uuid("holder_id").references(() => suspects.id, { onDelete: "cascade" }),
     discoverHint: text("discover_hint").notNull().default(""), // AI 판정용: 어떻게 하면 찾는지
     requires: uuid("requires").array().notNull().default([]), // 먼저 찾아야 하는 단서 id
+    combine: uuid("combine").array().notNull().default([]), // 연결 단서: 이 단서들을 수첩에서 이어야 얻는다 (장소·용의자 없음)
     lockLabel: text("lock_label"), // 잠금 단서: 화면에 보이는 이름 (예: 금고, 숫자 4자리)
     passcode: text("passcode"), // 잠금 단서의 정답. 서버에서만 비교
     isKey: boolean("is_key").notNull().default(false), // 결정적 증거 (채점용)

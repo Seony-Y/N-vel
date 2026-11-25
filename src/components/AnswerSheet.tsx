@@ -61,7 +61,7 @@ export function AnswerSheet({ full, found }: { full: FullCase; found?: Set<strin
                     {x.name}
                     {x.passcode && <div className="mt-0.5 font-mono text-xs font-normal text-amber-700 sm:hidden dark:text-amber-300">🔒 {x.passcode}</div>}
                   </td>
-                  <td className="py-2 pr-2 text-zinc-500">{x.locationId ? locName(x.locationId) : `${susName(x.holderId)}의 증언`}</td>
+                  <td className="py-2 pr-2 text-zinc-500">{x.combine.length ? `🧩 ${x.combine.map(clueName).join(" + ")}` : x.locationId ? locName(x.locationId) : `${susName(x.holderId)}의 증언`}</td>
                   <td className="py-2 pr-2 text-zinc-500">
                     {x.discoverHint}
                     {x.requires.length > 0 && <div className="text-xs">선행: {x.requires.map(clueName).join(", ")}</div>}

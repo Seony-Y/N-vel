@@ -29,7 +29,8 @@ export function mockGameReply(params: { userText: string; modelLabel: string; wh
   const next = full
     ? ["주위를 천천히 둘러본다", ...full.locations.filter((l) => l.code !== go?.code).slice(0, 1).map((l) => `${l.name}(으)로 가 본다`), `${full.suspects[0].name}에게 말을 건다`]
     : ["그때 어디에 계셨나요?", "피해자와는 어떤 사이였죠?", "더 숨기는 건 없나요?"];
-  return lines.join("\n") + (go ? `<go>${go.code}</go>` : "") + hit.map((c) => `<clue>${c.code}</clue>`).join("") + `<next>${next.join("|")}</next>`;
+  const say = full ? "" : `<say>테스트 진술: ${userText.slice(0, 20)}에 답했다고 한다</say>`;
+  return lines.join("\n") + say + (go ? `<go>${go.code}</go>` : "") + hit.map((c) => `<clue>${c.code}</clue>`).join("") + `<next>${next.join("|")}</next>`;
 }
 
 /** 실제 스트리밍처럼 보이도록 조금씩 내보낸다 */

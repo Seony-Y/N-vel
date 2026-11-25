@@ -11,7 +11,7 @@ export type DraftLocation = Draft["locations"][number];
 export type DraftSuspect = Draft["suspects"][number];
 export type DraftClue = Draft["clues"][number];
 
-export function nextCode(prefix: "L" | "S" | "C" | "T", d: Draft) {
+export function nextCode(prefix: "L" | "S" | "C" | "T" | "D", d: Draft) {
   const used = new Set([...d.locations, ...d.suspects, ...d.clues].map((x) => x.code));
   for (let i = 1; ; i++) if (!used.has(`${prefix}${i}`)) return `${prefix}${i}`;
 }
@@ -49,8 +49,8 @@ export function emptySuspect(code: string): DraftSuspect {
   return { code, name: "", role: "", profile: "", personality: "", speechStyle: "", alibi: "", actual: "", secrets: "", knowledge: "", breakpoints: [] };
 }
 
-export function emptyClue(code: string, where: { location?: string; holder?: string }): DraftClue {
-  return { code, name: "", description: "", docHtml: "", discoverHint: "", requires: [], isKey: false, ...where };
+export function emptyClue(code: string, where: { location?: string; holder?: string; combine?: string[] }): DraftClue {
+  return { code, name: "", description: "", docHtml: "", discoverHint: "", requires: [], combine: [], isKey: false, ...where };
 }
 
 /** 항목을 지울 때 그 항목을 가리키던 참조도 함께 정리한다 */
@@ -73,7 +73,10 @@ export function removeClue(d: Draft, code: string) {
 
 function cleanClueRefs(d: Draft) {
   const codes = new Set(d.clues.map((c) => c.code));
-  for (const c of d.clues) c.requires = c.requires.filter((r) => codes.has(r));
+  for (const c of d.clues) {
+    c.requires = c.requires.filter((r) => codes.has(r));
+    c.combine = c.combine.filter((r) => codes.has(r));
+  }
   for (const s of d.suspects) {
     s.breakpoints = s.breakpoints.filter((b) => codes.has(b.clue));
     for (const b of s.breakpoints) if (b.reveals && !codes.has(b.reveals)) b.reveals = undefined;

@@ -210,20 +210,29 @@ export function CluesTab({ d, update }: Props) {
   return (
     <Section
       title="단서"
-      description="장소 단서는 나레이터가 '찾는 법'에 맞는 행동을 하면 주고, 증언 단서는 용의자가 조건에 맞는 질문을 받으면 줘요. 잠금을 걸면 비밀번호를 입력해야만 얻을 수 있어요"
+      description="장소 단서는 나레이터가 '찾는 법'에 맞는 행동을 하면 주고, 증언 단서는 용의자가 조건에 맞는 질문을 받으면 줘요. 잠금을 걸면 비밀번호를 입력해야만 얻을 수 있어요. 연결 단서는 플레이어가 수첩에서 다른 단서 2~3개를 이어야 얻는 결론이에요"
     >
       {d.clues.map((c, i) => {
         const set = (fn: (c: Draft["clues"][number]) => void) => update((x) => fn(x.clues[i]));
         const isTestimony = !!c.holder;
+        const isLink = !c.holder && !c.location && c.combine.length > 0;
+        const toggleCode = (key: "requires" | "combine", code: string) => set((t) => void (t[key] = t[key].includes(code) ? t[key].filter((r) => r !== code) : [...t[key], code]));
         return (
-          <ItemCard key={c.code} title={`${isTestimony ? "🗣" : "🔍"} ${c.name || `단서 ${i + 1}`}${c.isKey ? " ⭐" : ""}`} onRemove={() => update((x) => removeClue(x, c.code))}>
+          <ItemCard key={c.code} title={`${isLink ? "🧩" : isTestimony ? "🗣" : "🔍"} ${c.name || `단서 ${i + 1}`}${c.isKey ? " ⭐" : ""}`} onRemove={() => update((x) => removeClue(x, c.code))}>
             <div className="grid gap-3 sm:grid-cols-2">
               <Select
                 title="종류"
-                value={isTestimony ? "testimony" : "location"}
+                value={isLink ? "link" : isTestimony ? "testimony" : "location"}
                 onChange={(v) =>
                   set((t) => {
-                    if (v === "testimony") {
+                    t.combine = [];
+                    if (v === "link") {
+                      t.location = undefined;
+                      t.holder = undefined;
+                      t.lock = undefined;
+                      t.requires = [];
+                      t.combine = d.clues.filter((o) => o.code !== t.code).slice(0, 2).map((o) => o.code);
+                    } else if (v === "testimony") {
                       t.location = undefined;
                       t.holder = d.suspects[0]?.code;
                       t.lock = undefined;
@@ -236,9 +245,10 @@ export function CluesTab({ d, update }: Props) {
                 options={[
                   { value: "location", label: "장소 단서 (조사로 발견)" },
                   { value: "testimony", label: "증언 단서 (심문으로 얻음)" },
+                  ...(d.clues.length > 1 ? [{ value: "link", label: "연결 단서 (단서를 이어서 얻음)" }] : []),
                 ]}
               />
-              {isTestimony ? (
+              {isLink ? null : isTestimony ? (
                 <Select title="누가 말해 주나" value={c.holder} onChange={(v) => set((t) => void (t.holder = v))} options={d.suspects.map((s) => ({ value: s.code, label: s.name || s.code }))} />
               ) : (
                 <Select title="어디에 있나" value={c.location} onChange={(v) => set((t) => void (t.location = v))} options={d.locations.map((l) => ({ value: l.code, label: l.name || l.code }))} placeholder="선택" />
@@ -246,26 +256,28 @@ export function CluesTab({ d, update }: Props) {
             </div>
             <TextInput title="이름" value={c.name} onChange={(v) => set((t) => void (t.name = v))} max={60} placeholder={isTestimony ? "예) 가정부의 증언: 말다툼" : "예) 피해자의 수첩"} />
             <TextArea title="내용 (발견하면 수첩에 적힘)" value={c.description} onChange={(v) => set((t) => void (t.description = v))} max={2000} rows={3} />
-            <TextInput
+            {!isLink && <TextInput
               title={isTestimony ? "말해 주는 조건" : "찾는 법"}
               hint={isTestimony ? "예) 그날 밤 들은 소리를 물으면 / 증거를 제시받아야만 말한다" : "예) 책상이나 서랍을 살펴보면"}
               value={c.discoverHint}
               onChange={(v) => set((t) => void (t.discoverHint = v))}
               max={1000}
-            />
+            />}
 
             <div>
-              <Label title="선행 단서" hint="이 단서들을 먼저 찾아야 이 단서가 나와요 (선택)" />
+              {isLink ? <Label title="이을 단서" hint="플레이어가 이 단서들을 골라 이으면 얻어요 (2~3개)" /> : <Label title="선행 단서" hint="이 단서들을 먼저 찾아야 이 단서가 나와요 (선택)" />}
               <div className="flex flex-wrap gap-1.5">
                 {d.clues
                   .filter((o) => o.code !== c.code)
                   .map((o) => {
-                    const on = c.requires.includes(o.code);
+                    const key = isLink ? "combine" : "requires";
+                    const on = c[key].includes(o.code);
                     return (
                       <button
                         key={o.code}
                         type="button"
-                        onClick={() => set((t) => void (t.requires = on ? t.requires.filter((r) => r !== o.code) : [...t.requires, o.code]))}
+                        disabled={isLink && (on ? c.combine.length <= 2 : c.combine.length >= 3)}
+                        onClick={() => toggleCode(key, o.code)}
                         className={`rounded-full border px-2.5 py-1 text-xs ${on ? "border-red-600 bg-red-50 text-red-700 dark:bg-red-950/40 dark:text-red-300" : "border-zinc-300 text-zinc-600 dark:border-zinc-700 dark:text-zinc-300"}`}
                       >
                         {o.name || o.code}
@@ -277,7 +289,7 @@ export function CluesTab({ d, update }: Props) {
 
             <div className="space-y-3 rounded-lg border border-zinc-200 p-3 dark:border-zinc-700">
               <Toggle title="⭐ 결정적 증거" hint="이 단서만 봐도 범인을 그 사람으로 좁힐 수 있을 때만 켜세요 (흉기·동기처럼 누가 했는지 말해 주지 않는 단서는 객관식으로)" checked={c.isKey} onChange={(v) => set((t) => void (t.isKey = v))} />
-              {!isTestimony && (
+              {!isTestimony && !isLink && (
                 <>
                   <Toggle title="🔒 잠금" hint="금고·자물쇠 등. 비밀번호를 입력해야만 얻을 수 있어요" checked={!!c.lock} onChange={(v) => set((t) => void (t.lock = v ? { label: "잠긴 상자", passcode: "" } : undefined))} />
                   {c.lock && (
@@ -300,12 +312,15 @@ export function CluesTab({ d, update }: Props) {
           </ItemCard>
         );
       })}
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="grid gap-2 sm:grid-cols-3">
         <AddButton onClick={() => update((x) => void x.clues.push(emptyClue(nextCode("C", x), { location: firstLoc })))} disabled={d.clues.length >= 60}>
           장소 단서 추가
         </AddButton>
         <AddButton onClick={() => update((x) => void x.clues.push(emptyClue(nextCode("T", x), { holder: x.suspects[0]?.code })))} disabled={d.clues.length >= 60}>
           증언 단서 추가
+        </AddButton>
+        <AddButton onClick={() => update((x) => void x.clues.push(emptyClue(nextCode("D", x), { combine: x.clues.slice(0, 2).map((o) => o.code) })))} disabled={d.clues.length < 2 || d.clues.length >= 60}>
+          연결 단서 추가
         </AddButton>
       </div>
     </Section>

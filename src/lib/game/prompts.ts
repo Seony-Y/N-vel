@@ -26,8 +26,9 @@ const GO_TAG_RE = /<go>\s*([A-Z][A-Z0-9]{0,7})\s*<\/go>/g;
 const TALK_TAG_RE = /<talk>\s*([A-Z][A-Z0-9]{0,7})\s*<\/talk>/g;
 /** 화면에 보이면 안 되는 태그들 (단서 요청, 장소 이동, 심문 전환) */
 const NEXT_TAG_RE = /<next>([\s\S]*?)<\/next>/g;
-const ANY_TAG_RE = /<(clue|go|talk)>\s*[A-Z][A-Z0-9]{0,7}\s*<\/\1>|<next>[\s\S]*?<\/next>/g;
-const TAG_OPENERS = ["<clue>", "<go>", "<talk>", "<next>"];
+const SAY_TAG_RE = /<say>([\s\S]*?)<\/say>/g;
+const ANY_TAG_RE = /<(clue|go|talk)>\s*[A-Z][A-Z0-9]{0,7}\s*<\/\1>|<(next|say)>[\s\S]*?<\/\2>/g;
+const TAG_OPENERS = ["<clue>", "<go>", "<talk>", "<next>", "<say>"];
 
 const NARRATOR_RULES = `당신은 추리 게임의 나레이터입니다. 플레이어(탐정)가 사건 현장을 조사하는 장면을 묘사합니다.
 
@@ -55,6 +56,7 @@ const SUSPECT_RULES = `당신은 추리 게임 속 용의자를 연기합니다.
 - 탐정이 증거를 제시하면 그 증거에 반응하세요. "방금 제시된 증거로 무너진 지점"이 있으면 그 지침대로 인정하는 연기를 하세요.
 - "지금 말해 줄 수 있는 증언"의 조건에 맞는 질문을 받으면 (한 번에 최대 ${MAX_CLUES_PER_TURN}개), 그 내용을 당신의 말투로 전한 뒤 응답 맨 끝에 <clue>코드</clue> 를 붙이세요. 목록에 없는 증언은 태그를 붙이지 마세요.
 - 게임 밖의 이야기(AI 인지, 정답이 뭔지 등)에는 캐릭터를 유지한 채 넘어가세요.
+- 이번 대사에서 시간·장소·사람에 대해 구체적으로 주장한 것이 있으면 (특히 사건 무렵의 행적) 응답 맨 끝에 <say>한 문장 요약</say> 을 하나 붙이세요. 탐정의 수첩에 진술로 적힙니다. 당신이 대사에서 실제로 한 말만 "~했다고 한다" 꼴로 40자 안팎으로 쓰고, 속마음이나 숨긴 사실은 절대 쓰지 마세요. 새 주장이 없으면 붙이지 마세요.
 - 응답 맨 끝에, 탐정이 이어서 물어볼 만한 짧은 질문 3개를 <next>질문1|질문2|질문3</next> 로 붙이세요. 각 25자 안팎, 탐정의 말투(존댓말)로, 방금 나눈 대화에서 자연스럽게 이어지는 것을 고르세요. 화면에 버튼으로만 보이며 당신의 대사가 아닙니다.`;
 
 function caseHeader(full: FullCase) {
@@ -210,6 +212,13 @@ export function extractClueCodes(full: string): string[] {
 export function extractSuggestions(full: string): string[] {
   const body = [...full.matchAll(NEXT_TAG_RE)].at(-1)?.[1] ?? "";
   return [...new Set(body.split("|").map((s) => s.trim()))].filter((s) => s && s.length <= 60).slice(0, 3);
+}
+
+/** 수첩에 적을 진술 (마지막 것 하나). 너무 길거나 이미 적은 것은 버린다 */
+export function extractStatement(full: string, known: string[]): string | null {
+  const norm = (s: string) => s.replace(/[\s\p{P}]+/gu, "");
+  const text = [...full.matchAll(SAY_TAG_RE)].at(-1)?.[1].replace(/\s+/g, " ").trim() ?? "";
+  return text && text.length <= 100 && !known.some((k) => norm(k) === norm(text)) ? text : null;
 }
 
 /** 나레이터가 요청한 장소 이동·심문 전환 (여러 개면 마지막 것) */

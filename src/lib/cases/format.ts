@@ -125,6 +125,7 @@ const CaseFileShape = z
           holder: code.optional(),
           discoverHint: z.string().max(1000).default(""),
           requires: z.array(code).max(5).default([]),
+          combine: z.array(code).max(3).default([]), // 연결 단서: 이 단서 2~3개를 수첩에서 이으면 얻는다 (location·holder 대신)
           lock: z.object({ label: z.string().min(1).max(60), passcode: z.string().min(1).max(30) }).optional(),
           isKey: z.boolean().default(false),
         }),
@@ -145,13 +146,22 @@ const CaseFileShape = z
     if (!S.has(c.culprit)) issue(`범인 코드가 용의자에 없습니다: ${c.culprit}`);
     for (const q of c.quiz) if (q.answer >= q.options.length) issue(`퀴즈 정답 번호가 보기 범위를 벗어났습니다: ${q.question}`);
     for (const x of c.clues) {
-      if (!x.location === !x.holder) issue(`단서 ${x.code}: location 과 holder 중 하나만 지정하세요`);
+      if ([x.location, x.holder, x.combine.length].filter(Boolean).length !== 1) issue(`단서 ${x.code}: 장소·용의자·이을 단서 중 하나만 지정하세요`);
+      if (x.combine.length) {
+        if (x.combine.length < 2 || new Set(x.combine).size !== x.combine.length) issue(`단서 ${x.code}: 이을 단서를 서로 다른 2~3개로 고르세요`);
+        if (x.lock) issue(`단서 ${x.code}: 연결 단서에는 잠금을 걸 수 없습니다`);
+        if (x.requires.length) issue(`단서 ${x.code}: 연결 단서에는 선행 단서를 걸 수 없습니다`);
+        for (const r of x.combine) if (!C.has(r) || r === x.code) issue(`단서 ${x.code}: 이을 수 없는 단서 ${r}`);
+      }
       if (x.location && !L.has(x.location)) issue(`단서 ${x.code}: 없는 장소 ${x.location}`);
       if (x.holder && !S.has(x.holder)) issue(`단서 ${x.code}: 없는 용의자 ${x.holder}`);
       for (const r of x.requires) if (!C.has(r)) issue(`단서 ${x.code}: 없는 선행 단서 ${r}`);
     }
+    const links = c.clues.filter((x) => x.combine.length).map((x) => [...x.combine].sort().join("+"));
+    if (dup(links)) issue("같은 단서를 잇는 연결 단서가 두 개 있습니다");
     for (const s of c.suspects) {
       for (const b of s.breakpoints) {
+        if (b.reveals && c.clues.some((x) => x.code === b.reveals && x.combine.length)) issue(`용의자 ${s.code}: 연결 단서 ${b.reveals} 는 증언으로 줄 수 없습니다`);
         if (!C.has(b.clue)) issue(`용의자 ${s.code}: 없는 단서 ${b.clue}`);
         if (b.reveals && !C.has(b.reveals)) issue(`용의자 ${s.code}: 없는 단서 ${b.reveals}`);
       }

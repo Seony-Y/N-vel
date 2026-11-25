@@ -2,7 +2,7 @@ import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { PlaySession } from "@/types/db";
 import { fixture, playing } from "./fixture";
-import { extractClueCodes, extractMoves, extractSuggestions, narratorPrompt, suspectPrompt, visibleText } from "./prompts";
+import { extractClueCodes, extractMoves, extractStatement, extractSuggestions, narratorPrompt, suspectPrompt, visibleText } from "./prompts";
 import { discoverable, tellableBy } from "./rules";
 
 const manor = fixture("storm-manor");
@@ -58,4 +58,13 @@ test("화면에 태그가 보이지 않는다", () => {
   assert.deepEqual(extractClueCodes(raw), ["C8"]);
   assert.equal(extractMoves(raw).go, "L2");
   assert.deepEqual(extractSuggestions(raw), ["가", "나", "다"]);
+});
+
+test("진술 태그는 화면에서 숨기고, 이미 적은 진술은 다시 적지 않는다", () => {
+  const raw = "*웃는다* 음악실에 있었지요.<say>밤 10시부터 음악실에 있었다고 한다</say><next>가|나|다</next>";
+  assert.equal(visibleText(raw, true), "*웃는다* 음악실에 있었지요.");
+  assert.equal(visibleText("있었지요.<say>밤 10"), "있었지요.");
+  assert.equal(extractStatement(raw, []), "밤 10시부터 음악실에 있었다고 한다");
+  assert.equal(extractStatement(raw, ["밤 10시부터 음악실에 있었다고 한다."]), null);
+  assert.equal(extractStatement("그런 적 없어요.", []), null);
 });

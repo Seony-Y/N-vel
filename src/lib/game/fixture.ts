@@ -10,7 +10,7 @@ export function fixture(slug: string): FullCase {
     case: { ...c, culpritId: c.culprit },
     locations: c.locations.map((l) => ({ ...l, id: l.code })),
     suspects: c.suspects.map((s) => ({ ...s, id: s.code })),
-    clues: c.clues.map((x) => ({ ...x, id: x.code, locationId: x.location ?? null, holderId: x.holder ?? null, passcode: x.lock?.passcode ?? null, lockLabel: x.lock?.label ?? null })),
+    clues: c.clues.map((x) => ({ ...x, id: x.code, locationId: x.location ?? null, holderId: x.holder ?? null, combine: x.combine, passcode: x.lock?.passcode ?? null, lockLabel: x.lock?.label ?? null })),
     breakpoints: c.suspects.flatMap((s) => s.breakpoints.map((b, i) => ({ id: `${s.code}-${i}`, suspectId: s.code, clueId: b.clue, admission: b.admission, revealsClueId: b.reveals ?? null }))),
   } as unknown as FullCase;
 }

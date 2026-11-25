@@ -76,6 +76,12 @@ export function openableLocks(full: FullCase, session: PlaySession) {
   return full.clues.filter((c) => c.passcode && c.locationId && !found.has(c.id) && prerequisitesMet(c, found));
 }
 
+/** 이 단서들을 이으면 나오는 연결 단서 (순서는 상관없다). 없으면 null */
+export function combination(full: FullCase, clueIds: string[]): Clue | null {
+  const picked = new Set(clueIds);
+  return full.clues.find((c) => c.combine.length > 0 && c.combine.length === picked.size && c.combine.every((id) => picked.has(id))) ?? null;
+}
+
 /** 플레이어가 글로 흉내 낸 증거 제시 표시를 바꿔 둔다. 진짜 제시는 서버가 붙인다 */
 export function stripFakePresent(message: string) {
   return message.replace(/[[［【]\s*증거\s*제시/g, "(증거 제시");

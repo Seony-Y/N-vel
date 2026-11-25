@@ -6,9 +6,10 @@ import { getChatModel } from "@/lib/ai/models";
 import { logEvent, logUsage } from "@/lib/ai/usage";
 import { changeCredits, getBalance } from "@/lib/credits";
 import { loadThread } from "@/lib/game/load";
-import { extractClueCodes, extractMoves, extractSuggestions, narratorPrompt, suspectPrompt, visibleText } from "@/lib/game/prompts";
+import { extractClueCodes, extractMoves, extractStatement, extractSuggestions, narratorPrompt, suspectPrompt, visibleText } from "@/lib/game/prompts";
 import { publicState } from "@/lib/game/public";
 import { breakpointFor, discoverable, limitPerTurn, spokenWithoutTag, stripFakePresent, tellableBy, validateRequested } from "@/lib/game/rules";
+import { STATEMENT_PREFIX } from "@/lib/game/statements";
 import { addMessages, addProgress, openSession } from "@/lib/game/session";
 import { overDailyCost } from "@/lib/quota";
 import type { FullCase } from "@/lib/game/load";
@@ -178,7 +179,11 @@ export async function POST(request: Request, ctx: RouteContext<"/api/play/[id]/a
 
         [session] = await saving;
         const newIds = found.map((c) => c.id);
+        const known = history.filter((m) => m.role === "event" && m.content.startsWith(STATEMENT_PREFIX)).map((m) => m.content.slice(STATEMENT_PREFIX.length));
+        // 증언 단서를 얻은 턴에는 같은 내용이 단서로 적히므로 진술을 따로 남기지 않는다
+        const statement = isNarrator || result?.refused || found.length ? null : extractStatement(raw, known);
         const events = [
+          ...(statement ? [STATEMENT_PREFIX + statement] : []),
           ...(movedTo ? [`📍 ${movedTo.name}(으)로 이동했습니다`] : []),
           ...found.map((c) => `🔍 단서 발견: ${c.name}`),
         ];

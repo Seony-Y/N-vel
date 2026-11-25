@@ -19,7 +19,7 @@ export function checkCase(c: CaseFile): CheckIssue[] {
 
   // 선행 단서가 서로를 요구하면 영원히 못 찾는다
   // 단서 수가 적으므로(최대 60) 단서마다 선행 단서를 따라가 자기 자신으로 돌아오는지 본다
-  const requires = new Map(c.clues.map((x) => [x.code, x.requires]));
+  const requires = new Map(c.clues.map((x) => [x.code, [...x.requires, ...x.combine]]));
   const reachesSelf = (start: string) => {
     const seen = new Set<string>();
     const stack = [...(requires.get(start) ?? [])];
@@ -32,7 +32,7 @@ export function checkCase(c: CaseFile): CheckIssue[] {
     }
     return false;
   };
-  for (const x of c.clues) if (reachesSelf(x.code)) out.push({ severity: "error", message: `「${x.name}」의 선행 단서가 서로를 요구하고 있어 영원히 찾을 수 없어요` });
+  for (const x of c.clues) if (reachesSelf(x.code)) out.push({ severity: "error", message: `「${x.name}」의 선행 단서나 이을 단서가 서로를 요구하고 있어 영원히 찾을 수 없어요` });
 
   // 증언 단서인데 "제시받아야" 라고 써 두고 무너지는 지점이 없음
   const revealed = new Set(c.suspects.flatMap((s) => s.breakpoints.map((b) => b.reveals).filter(Boolean)));
@@ -60,6 +60,8 @@ export function checkCase(c: CaseFile): CheckIssue[] {
   for (const s of c.suspects) {
     if (!s.alibi || !s.actual) warn(`${s.name}: 주장하는 알리바이와 실제 행적을 모두 채워야 AI 가 일관되게 연기해요`);
   }
+
+  if (!c.clues.some((x) => x.combine.length)) tip("연결 단서가 없어요. 두 단서를 이어야 드러나는 결론을 넣으면 '모으기'가 아니라 '추리'하는 사건이 돼요");
 
   const keys = c.clues.filter((x) => x.isKey);
   if (keys.length < 3) tip(`결정적 증거가 ${keys.length}개예요. 채점은 최대 3개까지 고르게 하므로 3개 이상이면 좋아요`);

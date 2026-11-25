@@ -6,6 +6,7 @@ import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
 import { EFFICIENCY_HALF_RATIO, GUIDE_NOTE_MIN, HINT_PENALTY, MAX_EVIDENCE, MAX_NARRATIVE, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
+import { STATEMENT_PREFIX } from "@/lib/game/statements";
 
 const TRAILER = "\u001e";
 const FOUND_PREFIX = "🔍 단서 발견: ";
@@ -230,6 +231,22 @@ export function PlayScreen({
       }
     } catch (e) {
       setError((e as Error).message);
+    }
+  }
+
+  /** 수첩의 단서 2~3개를 잇는다. 맞았는지 돌려준다 */
+  async function combine(clueIds: string[]) {
+    setError(null);
+    try {
+      const r = (await post("combine", { clueIds })) as { ok: boolean; clueId?: string; events: string[]; state: PublicState };
+      setState(r.state);
+      pushLocal(...r.events.map((content) => ({ thread: "narrator", role: "event" as const, content })));
+      flash(r.ok ? "🧩 단서가 이어졌어요!" : "아직 맞물리지 않아요 (행동 1회로 셌어요)");
+      if (r.ok) setOpenClue(r.state.foundClues.find((c) => c.id === r.clueId) ?? null);
+      return r.ok;
+    } catch (e) {
+      flash((e as Error).message);
+      return false;
     }
   }
 
@@ -473,6 +490,8 @@ export function PlayScreen({
   const notebook = (
     <Notebook
       state={state}
+      statements={data.suspects.map((s) => ({ name: s.name, items: messages.filter((m) => m.thread === s.id && m.role === "event" && m.content.startsWith(STATEMENT_PREFIX)) })).filter((s) => s.items.length)}
+      onCombine={combine}
       onOpenClue={setOpenClue}
       onHint={hint}
       notes={notes}
@@ -744,7 +763,7 @@ function ActionsBadge({ used, target }: { used: number; target: number | null })
   const [open, setOpen] = useState(false);
   const close = useCallback(() => setOpen(false), []);
   const ref = useDismiss<HTMLSpanElement>(open, close);
-  const counted = "조사·질문·증거 제시 1번이 행동 1회예요 (비밀번호를 틀려도 1회). 장소 이동, 메모, 힌트, 추리 제출은 세지 않아요.";
+  const counted = "조사·질문·증거 제시 1번이 행동 1회예요 (비밀번호나 단서 잇기를 틀려도 1회). 장소 이동, 메모, 힌트, 추리 제출은 세지 않아요.";
   const over = !!target && used > target;
   return (
     <span ref={ref} className="relative inline-block" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
@@ -873,6 +892,7 @@ function Guide({ data, state, messages, notes, onHint }: { data: PublicCase; sta
 }
 
 function Bubble({ m, name }: { m: PublicMessage; name?: string }) {
+  if (m.role === "event" && m.content.startsWith(STATEMENT_PREFIX)) return <p className="text-center text-xs text-zinc-400">{m.content}</p>;
   if (m.role === "event") {
     return <div className="mx-auto max-w-md whitespace-pre-wrap rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{m.content}</div>;
   }
@@ -950,9 +970,11 @@ function LockInput({ label, disabled, onSubmit }: { label: string; disabled: boo
   );
 }
 
-/** 수첩: 단서·힌트·메모. 추리 제출과 수사 포기는 대화창 위에 따로 있다 */
+/** 수첩: 단서·진술·힌트·메모. 추리 제출과 수사 포기는 대화창 위에 따로 있다 */
 function Notebook({
   state,
+  statements,
+  onCombine,
   onOpenClue,
   onHint,
   notes,
@@ -963,6 +985,8 @@ function Notebook({
   onSaveNotes,
 }: {
   state: PublicState;
+  statements: { name: string; items: PublicMessage[] }[]; // 용의자별 진술
+  onCombine: (clueIds: string[]) => Promise<boolean>;
   onOpenClue: (c: PublicClue) => void;
   onHint: () => void;
   notes: string;
@@ -972,17 +996,50 @@ function Notebook({
   savingNotes: boolean;
   onSaveNotes: () => void;
 }) {
+  // 단서 연결: 고르는 중이면 고른 단서 id 목록, 아니면 null
+  const [linking, setLinking] = useState<string[] | null>(null);
+  const [pending, setPending] = useState(false);
+  const toggle = (id: string) => setLinking((l) => l && (l.includes(id) ? l.filter((x) => x !== id) : l.length < 3 ? [...l, id] : l));
+
   return (
     <div className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
       <div>
-        <h3 className="mb-2 text-sm font-semibold">📒 단서 ({state.foundClues.length})</h3>
+        <div className="mb-2 flex items-center justify-between">
+          <h3 className="text-sm font-semibold">📒 단서 ({state.foundClues.length})</h3>
+          {state.links.total > 0 && state.foundClues.length >= 2 && (
+            <button type="button" onClick={() => setLinking(linking ? null : [])} className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30">
+              {linking ? "취소" : `🧩 단서 잇기 (${state.links.found}/${state.links.total})`}
+            </button>
+          )}
+        </div>
+        {linking && (
+          <div className="mb-2 space-y-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
+            <p>함께 보면 새로운 사실이 드러나는 단서 2~3개를 고르세요. 맞으면 새 단서를 얻고, 틀리면 행동 1회로 세요. 크레딧은 들지 않아요.</p>
+            <button
+              type="button"
+              disabled={linking.length < 2 || pending}
+              onClick={async () => {
+                setPending(true);
+                if (await onCombine(linking)) setLinking(null);
+                setPending(false);
+              }}
+              className="w-full rounded-lg bg-red-600 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
+            >
+              {linking.length}개 잇기
+            </button>
+          </div>
+        )}
         {state.foundClues.length === 0 ? (
           <p className="text-sm text-zinc-400">아직 찾은 단서가 없어요.</p>
         ) : (
           <ul className="space-y-1.5">
             {state.foundClues.map((c) => (
               <li key={c.id}>
-                <button onClick={() => onOpenClue(c)} className="block w-full rounded-lg border border-zinc-200 px-3 py-2 text-left hover:border-red-300 dark:border-zinc-800">
+                <button
+                  onClick={() => (linking ? toggle(c.id) : onOpenClue(c))}
+                  aria-pressed={linking ? linking.includes(c.id) : undefined}
+                  className={`block w-full rounded-lg border px-3 py-2 text-left hover:border-red-300 ${linking?.includes(c.id) ? "border-red-600 bg-red-50 dark:bg-red-950/30" : "border-zinc-200 dark:border-zinc-800"}`}
+                >
                   <div className="text-sm font-medium">{c.name}</div>
                   <div className="text-xs text-zinc-500">{c.source}</div>
                 </button>
@@ -991,6 +1048,27 @@ function Notebook({
           </ul>
         )}
       </div>
+
+      {statements.length > 0 && (
+        <div>
+          <h3 className="mb-2 text-sm font-semibold">📝 진술</h3>
+          <div className="space-y-2">
+            {statements.map((s) => (
+              <details key={s.name} open className="rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800">
+                <summary className="cursor-pointer font-medium">
+                  {s.name} <span className="text-xs font-normal text-zinc-400">{s.items.length}</span>
+                </summary>
+                <ul className="mt-1.5 list-disc space-y-1 pl-4 leading-relaxed text-zinc-600 dark:text-zinc-300">
+                  {s.items.map((m) => (
+                    <li key={m.id}>{m.content.slice(STATEMENT_PREFIX.length)}</li>
+                  ))}
+                </ul>
+              </details>
+            ))}
+          </div>
+          <p className="mt-1.5 text-xs text-zinc-400">용의자가 한 말이에요. 사실이 아닐 수 있으니 단서와 비교해 보세요.</p>
+        </div>
+      )}
 
       <div>
         <div className="mb-2 flex items-center justify-between">

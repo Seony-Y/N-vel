@@ -28,6 +28,7 @@ export interface PublicState {
   hintsTotal: number;
   foundClues: PublicClue[];
   locks: { clueId: string; label: string; locationId: string }[]; // 아직 안 열린 잠금 장치
+  links: { found: number; total: number }; // 단서 연결: 찾은 수 / 전체
   notes: string;
 }
 
@@ -92,7 +93,7 @@ export function publicState(full: FullCase, s: PlaySession): PublicState {
       description: c.description,
       image: c.image,
       docHtml: c.docHtml,
-      source: c.locationId ? (locName.get(c.locationId) ?? "") : `${susName.get(c.holderId ?? "") ?? ""}의 증언`,
+      source: c.combine.length ? "🧩 단서 연결" : c.locationId ? (locName.get(c.locationId) ?? "") : `${susName.get(c.holderId ?? "") ?? ""}의 증언`,
     }));
 
   return {
@@ -106,6 +107,7 @@ export function publicState(full: FullCase, s: PlaySession): PublicState {
     hintsTotal: Math.min(full.case.hints.length, MAX_HINTS), // 예전에 4개 넘게 넣은 사건도 4개까지만
     foundClues,
     locks: openableLocks(full, s).map((c) => ({ clueId: c.id, label: c.lockLabel ?? "잠긴 물건", locationId: c.locationId! })),
+    links: { found: full.clues.filter((c) => c.combine.length && s.foundClueIds.includes(c.id)).length, total: full.clues.filter((c) => c.combine.length).length },
     notes: s.notes,
   };
 }
