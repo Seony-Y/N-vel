@@ -4,6 +4,7 @@ import { memo, useCallback, useEffect, useRef, useState } from "react";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
 import { EFFICIENCY_HALF_RATIO, GUIDE_NOTE_MIN, HINT_PENALTY, MAX_EVIDENCE, MAX_NARRATIVE, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
+import type { GuestResult } from "@/lib/guest-storage";
 import { STATEMENT_PREFIX } from "@/lib/game/statements";
 
 /* 수사 화면의 조각들 (배지, 가이드, 말풍선, 잠금, 수첩, 창). 진행 상태와 서버 요청은 PlayScreen 이 맡는다 */
@@ -511,6 +512,7 @@ export function AccuseModal({
   narrative,
   onNarrative,
   onClose,
+  onSubmit,
   onDone,
 }: {
   data: PublicCase;
@@ -519,7 +521,8 @@ export function AccuseModal({
   narrative: string;
   onNarrative: (v: string) => void;
   onClose: () => void;
-  onDone: () => void;
+  onSubmit: (body: unknown) => Promise<Response>;
+  onDone: (accusation: { culpritId: string; answers: number[]; evidenceIds: string[] }, result: GuestResult) => void;
 }) {
   const [culpritId, setCulpritId] = useState<string | null>(null);
   const [answers, setAnswers] = useState<number[]>(data.quiz.map(() => -1));
@@ -533,17 +536,13 @@ export function AccuseModal({
     setPending(true);
     setError(null);
     // 서술 채점을 기다리느라 오래 걸릴 수 있다. 연결이 끊겨도 버튼이 멈춰 있지 않게
-    const res = await fetch(`/api/play/${state.sessionId}/accuse`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ culpritId, answers, evidenceIds: evidence, narrative: data.scripted ? "" : narrative }),
-    }).catch(() => null);
+    const res = await onSubmit({ culpritId, answers, evidenceIds: evidence, narrative: data.scripted ? "" : narrative }).catch(() => null);
     if (!res?.ok) {
       setError((await res?.json().catch(() => ({})))?.error ?? "제출하지 못했어요. 연결을 확인하고 다시 제출해 주세요");
       setPending(false);
       return;
     }
-    onDone();
+    onDone({ culpritId: culpritId!, answers, evidenceIds: evidence }, (await res.json().catch(() => ({}))).result);
   }
 
   return (

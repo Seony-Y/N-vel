@@ -388,6 +388,18 @@ export const bonusClaims = pgTable("bonus_claims", {
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
 
+// ───────────────────────── 이탈 지점 집계 ─────────────────────────
+// 비회원 프롤로그에서 단계마다 몇 번 도달했는지. 사람을 구별하는 정보는 남기지 않고 횟수만 센다
+export const funnelCounts = pgTable(
+  "funnel_counts",
+  {
+    day: text("day").notNull(), // 한국 날짜 YYYY-MM-DD
+    step: text("step").notNull(), // start, find:C1 …, submit, solved, claim
+    count: integer("count").notNull().default(0),
+  },
+  (t) => [primaryKey({ columns: [t.day, t.step] })],
+);
+
 // ───────────────────────── API 충전 기록 (관리자) ─────────────────────────
 // Anthropic 계정에 충전한 금액. 남은 예상 금액 = 충전 합계 - 첫 기록 이후 API 원가(usage_logs) 합계
 export const apiTopups = pgTable(

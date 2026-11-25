@@ -17,19 +17,19 @@ import { canPlay, loadCase } from "@/lib/game/load";
 import { publicCase } from "@/lib/game/public";
 import { EFFICIENCY_HALF_RATIO, POINTS } from "@/lib/game/rules";
 
-export default function CasePage({ params }: PageProps<"/cases/[id]">) {
+export default function CasePage({ params, searchParams }: PageProps<"/cases/[id]">) {
   return (
     <>
       <SiteHeader />
       <Suspense fallback={<Loading />}>
-        <CaseDetail params={params} />
+        <CaseDetail params={params} searchParams={searchParams} />
       </Suspense>
     </>
   );
 }
 
-async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params"] }) {
-  const { id } = await params;
+async function CaseDetail({ params, searchParams }: Pick<PageProps<"/cases/[id]">, "params" | "searchParams">) {
+  const [{ id }, { start }] = await Promise.all([params, searchParams]);
   const [userId, full] = await Promise.all([getUserId(), loadCase(id).catch(() => null)]);
   // 관리자는 숨긴 사건도 열어 볼 수 있다 (다시 보이게 하려고)
   if (!full || (!canPlay(full.case, userId) && !(await isAdmin(userId)))) notFound();
@@ -137,6 +137,8 @@ async function CaseDetail({ params }: { params: PageProps<"/cases/[id]">["params
             ongoingId={ongoing?.id ?? null}
             lastFinishedId={finished[0]?.id ?? null}
             loggedIn={!!userId}
+            autoStart={start === "1"}
+            guestFree={c.scripted && c.guide.length > 0}
             {...(!(full.case.isOfficial && full.case.script.length) && { models: CHAT_MODELS.map(({ id, label, credits }) => ({ id, label, credits })), balance })}
             defaultModel={DEFAULT_CHAT_MODEL}
           />

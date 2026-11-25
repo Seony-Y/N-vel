@@ -144,6 +144,29 @@ export async function perCase(days: number) {
   return rows.map((r) => ({ ...r, started: int(r.started), finished: int(r.finished), solved: int(r.solved), gaveUp: int(r.gaveUp), credits: int(r.credits), micros: int(r.micros) }));
 }
 
+/** AI 사건에서 첫 도전이 어디서 멈췄는지. 멈춤 = 아직 끝내지 않았고 하루 넘게 움직이지 않음 (관리자·제작자 제외) */
+export async function dropOff(days: number) {
+  const idle = sql`${playSessions.status} = 'playing' and ${playSessions.updatedAt} < now() - interval '1 day'`;
+  const rows = await db
+    .select({
+      id: cases.id,
+      title: cases.title,
+      started: sql<number>`count(*)`,
+      finished: sql<number>`count(*) filter (where ${playSessions.status} = 'finished')`,
+      none: sql<number>`count(*) filter (where ${idle} and ${playSessions.actionsUsed} = 0)`,
+      few: sql<number>`count(*) filter (where ${idle} and ${playSessions.actionsUsed} between 1 and 5)`,
+      mid: sql<number>`count(*) filter (where ${idle} and ${playSessions.actionsUsed} between 6 and 15)`,
+      late: sql<number>`count(*) filter (where ${idle} and ${playSessions.actionsUsed} > 15)`,
+    })
+    .from(playSessions)
+    .innerJoin(cases, eq(cases.id, playSessions.caseId))
+    .innerJoin(user, eq(user.id, playSessions.userId))
+    .where(and(gte(playSessions.createdAt, since(days)), sql`not ${playSessions.isRetry}`, sql`${user.role} <> 'admin'`, sql`${cases.ownerId} is distinct from ${playSessions.userId}`))
+    .groupBy(cases.id)
+    .orderBy(desc(sql`count(*)`));
+  return rows.map((r) => ({ ...r, started: int(r.started), finished: int(r.finished), none: int(r.none), few: int(r.few), mid: int(r.mid), late: int(r.late) }));
+}
+
 /** 공개 사건 관리: 공개 중이거나 관리자가 숨긴 사건 (숨긴 것 먼저, 그다음 최근 수정 순) */
 export async function moderationCases() {
   return db

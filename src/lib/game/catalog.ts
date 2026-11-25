@@ -45,7 +45,7 @@ export async function findPrologue() {
 }
 
 /** 다음에 풀 사건 하나: 아직 끝내지 않은 공식 사건 중 가장 쉽고 짧은 것 */
-export async function findNextCase(userId: string, currentCaseId: string) {
+export async function findNextCase(userId: string | null, currentCaseId: string) {
   const [row] = await db
     .select(listCols)
     .from(cases)
@@ -55,7 +55,7 @@ export async function findNextCase(userId: string, currentCaseId: string) {
         isNull(cases.hiddenAt),
         eq(cases.isOfficial, true),
         sql`${cases.id} <> ${currentCaseId}`,
-        sql`not exists (select 1 from ${playSessions} where ${playSessions.caseId} = ${cases.id} and ${playSessions.userId} = ${userId} and ${playSessions.status} = 'finished')`,
+        userId === null ? undefined : sql`not exists (select 1 from ${playSessions} where ${playSessions.caseId} = ${cases.id} and ${playSessions.userId} = ${userId} and ${playSessions.status} = 'finished')`,
       ),
     )
     .orderBy(asc(cases.difficulty), asc(cases.estimatedMinutes))

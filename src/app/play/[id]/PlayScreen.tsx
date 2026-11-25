@@ -2,9 +2,10 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
 import { STATEMENT_PREFIX } from "@/lib/game/statements";
+import type { GuestProgress, GuestResult } from "@/lib/guest-storage";
 import { AccuseModal, ActionsBadge, Bubble, ClueModal, FoundClue, Guide, LockInput, Modal, type ModelOption, ModelPicker, Notebook, StoryModal, useDismiss } from "./parts";
 
 const TRAILER = "\u001e";
@@ -35,6 +36,7 @@ export function PlayScreen({
   initialCredits,
   models,
   defaultModel,
+  guest,
 }: {
   data: PublicCase;
   initialState: PublicState;
@@ -42,6 +44,11 @@ export function PlayScreen({
   initialCredits: number;
   models: ModelOption[];
   defaultModel: string;
+  // 비회원 프롤로그: 진행 상황을 서버가 아니라 이 브라우저에 둔다
+  guest?: {
+    onProgress: (save: GuestProgress["save"], messages: PublicMessage[]) => void;
+    onDone: (save: GuestProgress["save"], accusation: { culpritId: string; answers: number[]; evidenceIds: string[] } | null, result: GuestResult) => void;
+  };
 }) {
   const router = useRouter();
   const [state, setState] = useState(initialState);
@@ -122,12 +129,18 @@ export function PlayScreen({
     setMessages((m) => [...m, ...items.map((x) => ({ ...x, id: crypto.randomUUID() }))]);
   }
 
-  async function post(path: string, body?: unknown) {
-    const res = await fetch(`/api/play/${state.sessionId}/${path}`, {
+  const guestSave = { locationId: state.currentLocationId, foundClueIds: state.foundClues.map((c) => c.id), actionsUsed: state.actionsUsed, hintsUsed: state.hintsUsed };
+  const request = (path: string, body?: unknown) =>
+    fetch(guest ? `/api/guest/${path}` : `/api/play/${state.sessionId}/${path}`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: body ? JSON.stringify(body) : undefined,
+      body: guest ? JSON.stringify({ ...(body as object | undefined), save: guestSave }) : body ? JSON.stringify(body) : undefined,
     });
+  const onProgress = useEffectEvent(() => guest?.onProgress(guestSave, messages));
+  useEffect(() => onProgress(), [state, messages]);
+
+  async function post(path: string, body?: unknown) {
+    const res = await request(path, body);
     const json = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(json.error ?? "요청에 실패했습니다");
     return json;
@@ -168,11 +181,7 @@ export function PlayScreen({
     };
 
     try {
-      const res = await fetch(`/api/play/${state.sessionId}/act`, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ target, message, presentClueId }),
-      }).catch(() => null);
+      const res = await request("act", { target, message, presentClueId }).catch(() => null);
       if (!res) {
         undo();
         throw new Error("인터넷 연결이 끊겨 보내지 못했어요. 연결을 확인하고 다시 보내 주세요");
@@ -203,7 +212,7 @@ export function PlayScreen({
       const [text, trailer] = raw.split(TRAILER);
       if (!trailer) {
         setStream({ thread: at, text: `${text.trim()}\n\n(연결이 끊겨 나머지를 불러오는 중…)`.trim() });
-        if (!(await resync(at))) throw new Error("답을 끝까지 받지 못했어요. 새로고침하면 저장된 내용을 볼 수 있어요");
+        if (guest || !(await resync(at))) throw new Error("답을 끝까지 받지 못했어요. 새로고침하면 저장된 내용을 볼 수 있어요");
         return;
       }
       const result = trailer ? (JSON.parse(trailer) as { state: PublicState; events: string[]; talkTo: string | null; suggestions?: string[]; credits: number }) : null;
@@ -446,7 +455,7 @@ export function PlayScreen({
   async function saveNotes() {
     setSavingNotes(true);
     try {
-      await post("notes", { notes });
+      if (!guest) await post("notes", { notes });
       setSavedNotes(notes);
       try {
         localStorage.removeItem(backupKey);
@@ -511,10 +520,11 @@ export function PlayScreen({
     setFinishing(true);
     if (notesDirty) await saveNotes();
     try {
-      if (path) await post(path);
+      const r = path ? await post(path) : null;
       try {
         localStorage.removeItem(narrativeKey);
       } catch {}
+      if (guest) return guest.onDone(guestSave, null, r.result);
       router.push(`/play/${state.sessionId}/result`);
     } catch (e) {
       setFinishing(false);
@@ -742,7 +752,7 @@ export function PlayScreen({
 
       {openClue && <ClueModal clue={openClue} onClose={() => setOpenClue(null)} />}
       {showStory && <StoryModal data={data} onClose={() => setShowStory(false)} />}
-      {accusing && <AccuseModal data={data} state={state} notes={notes} narrative={narrative} onNarrative={changeNarrative} onClose={() => setAccusing(false)} onDone={() => finish(null)} />}
+      {accusing && <AccuseModal data={data} state={state} notes={notes} narrative={narrative} onNarrative={changeNarrative} onClose={() => setAccusing(false)} onSubmit={(a) => request("accuse", a)} onDone={(a, result) => (guest ? guest.onDone(guestSave, a, result) : finish(null))} />}
       {confirmGiveUp && (
         <Modal title="수사 포기" onClose={() => setConfirmGiveUp(false)}>
           <p className="text-sm leading-relaxed">수사를 포기하면 사건은 미제로 남고 진상이 공개돼요. 나중에 다시 도전할 수 있어요.</p>

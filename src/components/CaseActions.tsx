@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useEffectEvent, useState, useTransition } from "react";
 
 export interface ModelOption {
   id: string;
@@ -27,6 +27,8 @@ export function CaseActions({
   size = "lg",
   retryOnly = false,
   balance,
+  guestFree = false,
+  autoStart = false,
 }: {
   caseId: string;
   ongoingId: string | null;
@@ -36,6 +38,8 @@ export function CaseActions({
   defaultModel?: string;
   size?: "sm" | "lg";
   retryOnly?: boolean; // 결과 화면: 다시 도전 버튼만
+  guestFree?: boolean; // 로그인 없이 할 수 있는 사건 (프롤로그)
+  autoStart?: boolean; // 로그인하고 돌아왔을 때 바로 시작
   balance?: number; // 넘기면 잔액과 이 모델로 가능한 행동 수를 보여준다
 }) {
   const router = useRouter();
@@ -49,9 +53,9 @@ export function CaseActions({
 
   const go = (href: string) => startMove(() => router.push(href));
 
-  async function start(restart: boolean) {
+  async function start(restart: boolean, replace = false) {
     if (!loggedIn) {
-      go(`/login?next=${encodeURIComponent(`/cases/${caseId}`)}`);
+      go(guestFree ? "/play/guest" : `/login?next=${encodeURIComponent(`/cases/${caseId}?start=1`)}`);
       return;
     }
     setPending(true);
@@ -67,9 +71,19 @@ export function CaseActions({
       setPending(false);
       return;
     }
-    go(`/play/${body.sessionId}`);
+    // 로그인 뒤 바로 시작한 경우: 뒤로 가기로 다시 시작되지 않도록 이 주소를 바꿔 둔다
+    if (replace) startMove(() => router.replace(`/play/${body.sessionId}`));
+    else go(`/play/${body.sessionId}`);
     setPending(false);
   }
+
+  const onAutoStart = useEffectEvent(() => {
+    if (autoStart && loggedIn && !lastFinishedId) start(false, true);
+  });
+  useEffect(() => {
+    const t = setTimeout(onAutoStart, 0);
+    return () => clearTimeout(t);
+  }, []);
 
   const big = size === "lg";
   const primary = `whitespace-nowrap rounded-xl bg-red-600 font-semibold text-white hover:bg-red-700 disabled:opacity-60 ${big ? "flex-1 py-3" : "flex-1 px-3 py-2 text-sm"}`;
@@ -113,7 +127,7 @@ export function CaseActions({
             </>
           ) : (
             <button onClick={() => start(false)} disabled={pending} className={primary}>
-              {pending ? "준비 중..." : loggedIn ? "수사 시작" : "로그인하고 수사 시작"}
+              {pending ? "준비 중..." : loggedIn ? "수사 시작" : guestFree ? "로그인 없이 바로 시작" : "로그인하고 수사 시작"}
             </button>
           )}
         </div>

@@ -85,7 +85,7 @@ function PrologueBanner({ c, ongoingId, loggedIn }: { c: CaseListItem; ongoingId
         <p className="mt-1 text-sm text-zinc-600 dark:text-zinc-400">{c.tagline}</p>
       </div>
       <div className="mt-4 shrink-0 sm:mt-0 sm:w-64">
-        <CaseActions caseId={c.id} ongoingId={ongoingId} lastFinishedId={null} loggedIn={loggedIn} />
+        <CaseActions caseId={c.id} ongoingId={ongoingId} lastFinishedId={null} loggedIn={loggedIn} guestFree={c.isFree && c.hasGuide} />
       </div>
     </section>
   );

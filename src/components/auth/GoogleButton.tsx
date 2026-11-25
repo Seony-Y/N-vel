@@ -16,7 +16,7 @@ export function GoogleButton({ enabled, next = "/", blocked = false }: { enabled
   async function go() {
     setPending(true);
     setError(null);
-    const { error } = await authClient.signIn.social({ provider: "google", callbackURL: next, newUserCallbackURL: VERIFIED_CALLBACK, errorCallbackURL: "/login?error=google" });
+    const { error } = await authClient.signIn.social({ provider: "google", callbackURL: next, newUserCallbackURL: next === "/" ? VERIFIED_CALLBACK : `${VERIFIED_CALLBACK}?next=${encodeURIComponent(next)}`, errorCallbackURL: next === "/" ? "/login?error=google" : `/login?error=google&next=${encodeURIComponent(next)}` });
     if (error) {
       setError(error.code === "INVALID_ORIGIN" || error.status === 429 ? authErrorMessage(error) : "구글 로그인을 시작하지 못했어요. 잠시 후 다시 시도해 주세요.");
       setPending(false);

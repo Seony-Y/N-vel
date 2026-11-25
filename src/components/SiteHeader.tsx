@@ -1,6 +1,7 @@
 import { eq } from "drizzle-orm";
 import Link from "next/link";
 import { cache, Suspense } from "react";
+import { GuestClaim } from "@/components/GuestClaim";
 import { GuestMenu, UserMenu } from "@/components/auth/UserMenu";
 import { db } from "@/db";
 import { user } from "@/db/schema";
@@ -54,5 +55,11 @@ async function AdminLink() {
 
 async function Account() {
   const u = await me();
-  return u ? <UserMenu name={u.name} credits={u.credits} /> : <GuestMenu />;
+  if (!u) return <GuestMenu />;
+  return (
+    <>
+      <GuestClaim />
+      <UserMenu name={u.name} credits={u.credits} />
+    </>
+  );
 }

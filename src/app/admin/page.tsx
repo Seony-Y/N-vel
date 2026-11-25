@@ -3,15 +3,17 @@ import Link from "next/link";
 import { Suspense } from "react";
 import { ApiBudget } from "@/components/admin/ApiBudget";
 import { CreditRequests } from "@/components/admin/CreditRequests";
+import { DropOff } from "@/components/admin/DropOff";
 import { HideCase } from "@/components/admin/HideCase";
 import { EventsPanel } from "@/components/admin/EventsPanel";
 import { Panel, PeriodTabs, pct, StatTile, Table, Td } from "@/components/admin/ui";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
 import { formatUsd } from "@/lib/ai/models";
-import { apiBudget, moderationCases, overview, perCase, perUser, recentEvents } from "@/lib/admin/stats";
+import { apiBudget, dropOff, moderationCases, overview, perCase, perUser, recentEvents } from "@/lib/admin/stats";
 import { requireAdmin } from "@/lib/auth";
 import { pendingRequests } from "@/lib/credit-requests";
+import { funnel } from "@/lib/funnel";
 
 export const metadata: Metadata = { title: "관리자 | N-vel" };
 
@@ -29,7 +31,7 @@ export default function AdminPage({ searchParams }: PageProps<"/admin">) {
 async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["searchParams"] }) {
   await requireAdmin("/admin");
   const days = Math.min(365, Math.max(1, Number((await searchParams).days) || 30));
-  const [o, users, cs, events, budget, requests, published] = await Promise.all([overview(days), perUser(days), perCase(days), recentEvents(30), apiBudget(), pendingRequests(), moderationCases()]);
+  const [o, users, cs, events, budget, requests, published, drops, guest] = await Promise.all([overview(days), perUser(days), perCase(days), recentEvents(30), apiBudget(), pendingRequests(), moderationCases(), dropOff(days), funnel(days)]);
   const issues = (o.events.refusal ?? 0) + (o.events.rejected_clue ?? 0) + (o.events.truncated ?? 0);
 
   return (
@@ -55,6 +57,8 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
       <Panel title="API 예산" action={<span className="text-xs text-zinc-500">원가는 토큰 수 × 가격표로 계산한 추정치예요</span>}>
         <ApiBudget {...budget} />
       </Panel>
+
+      <DropOff rows={drops} guest={guest} />
 
       <Panel title="사건별">
         <Table head={["사건", "플레이", "제출", "포기", "해결률", "평균 점수", "평균 일치율", "평균 행동", "크레딧", "원가", "플레이당 원가"]} empty={!cs.length}>

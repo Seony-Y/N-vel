@@ -65,7 +65,7 @@ export function CaseCard({ c, progress, loggedIn, favorite = false }: { c: CaseL
       </div>
       {/* 진행 상황에 맞는 버튼 (이어서 수사하기 / 결과 보기 + 다시 도전 / 수사 시작) */}
       <div className="px-4 pb-4">
-        <CaseActions caseId={c.id} ongoingId={progress?.ongoingId ?? null} lastFinishedId={progress?.lastFinished?.id ?? null} loggedIn={loggedIn} size="sm" />
+        <CaseActions caseId={c.id} ongoingId={progress?.ongoingId ?? null} lastFinishedId={progress?.lastFinished?.id ?? null} loggedIn={loggedIn} guestFree={c.isFree && c.hasGuide} size="sm" />
       </div>
     </div>
   );
