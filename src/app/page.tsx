@@ -3,6 +3,7 @@ import { Suspense } from "react";
 import { CaseActions } from "@/components/CaseActions";
 import { CaseCard } from "@/components/CaseCard";
 import { SiteHeader } from "@/components/SiteHeader";
+import { LinkPending } from "@/components/LinkPending";
 import { Loading } from "@/components/Loading";
 import { getUserId } from "@/lib/auth";
 import { CASE_SORTS, type CaseListItem, type CaseSort, findPrologue, listPublicCases, myFavoriteIds, myProgress } from "@/lib/game/catalog";
@@ -54,6 +55,7 @@ async function CaseList({ searchParams }: { searchParams: PageProps<"/">["search
               className={`whitespace-nowrap rounded-md px-3 py-1 ${sort === k ? "bg-white font-medium shadow-sm dark:bg-zinc-900" : "text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
             >
               {CASE_SORTS[k]}
+              <LinkPending />
             </Link>
           ))}
         </nav>

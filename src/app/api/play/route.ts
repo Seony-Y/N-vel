@@ -23,21 +23,18 @@ export async function POST(request: Request) {
   if (!parsed.success) return Response.json({ error: "잘못된 요청" }, { status: 400 });
   const { caseId, model, mode, restart } = parsed.data;
 
-  const full = await loadCase(caseId);
+  const playing = and(eq(playSessions.userId, userId), eq(playSessions.caseId, caseId), eq(playSessions.status, "playing"));
+  const [full, [ongoing]] = await Promise.all([
+    loadCase(caseId),
+    db.select({ id: playSessions.id }).from(playSessions).where(playing).orderBy(desc(playSessions.updatedAt)).limit(1),
+  ]);
   if (!full || !canPlay(full.case, userId)) return Response.json({ error: "사건을 찾을 수 없습니다" }, { status: 404 });
 
-  const playing = and(eq(playSessions.userId, userId), eq(playSessions.caseId, caseId), eq(playSessions.status, "playing"));
   if (restart) {
     // 진행 중이던 수사는 지운다. '포기'로 남기면 포기한 적이 없는데 포기 기록·통계가 쌓인다.
     // (대화 기록은 함께 지워지고, 크레딧·사용량 기록은 남되 이 수사와의 연결만 끊긴다)
     await db.delete(playSessions).where(playing);
   } else {
-    const [ongoing] = await db
-      .select({ id: playSessions.id })
-      .from(playSessions)
-      .where(playing)
-      .orderBy(desc(playSessions.updatedAt))
-      .limit(1);
     if (ongoing) return Response.json({ sessionId: ongoing.id });
   }
 

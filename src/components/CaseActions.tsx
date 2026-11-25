@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useState, useTransition } from "react";
 
 export interface ModelOption {
   id: string;
@@ -41,13 +41,17 @@ export function CaseActions({
   const router = useRouter();
   const [model, setModel] = useState(defaultModel);
   const [mode, setMode] = useState<"easy" | "hard">("easy");
-  const [pending, setPending] = useState(false);
+  const [starting, setPending] = useState(false);
+  const [moving, startMove] = useTransition(); // 화면이 넘어가는 동안
+  const pending = starting || moving;
   const [confirmRestart, setConfirmRestart] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
+  const go = (href: string) => startMove(() => router.push(href));
+
   async function start(restart: boolean) {
     if (!loggedIn) {
-      router.push(`/login?next=${encodeURIComponent(`/cases/${caseId}`)}`);
+      go(`/login?next=${encodeURIComponent(`/cases/${caseId}`)}`);
       return;
     }
     setPending(true);
@@ -56,14 +60,15 @@ export function CaseActions({
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ caseId, model, mode, restart }),
-    });
-    const body = await res.json().catch(() => ({}));
-    if (!res.ok) {
-      setError(body.error ?? "시작하지 못했습니다");
+    }).catch(() => null);
+    const body = await res?.json().catch(() => ({}));
+    if (!res?.ok) {
+      setError(body?.error ?? "시작하지 못했어요. 인터넷 연결을 확인하고 다시 눌러 주세요");
       setPending(false);
       return;
     }
-    router.push(`/play/${body.sessionId}`);
+    go(`/play/${body.sessionId}`);
+    setPending(false);
   }
 
   const big = size === "lg";
@@ -90,8 +95,8 @@ export function CaseActions({
             </button>
           ) : ongoingId ? (
             <>
-              <button onClick={() => router.push(`/play/${ongoingId}`)} className={primary}>
-                🔎 이어서 수사하기
+              <button onClick={() => go(`/play/${ongoingId}`)} disabled={pending} className={primary}>
+                {pending ? "여는 중..." : "🔎 이어서 수사하기"}
               </button>
               <button onClick={() => setConfirmRestart(true)} disabled={pending} className={secondary}>
                 처음부터
@@ -99,7 +104,7 @@ export function CaseActions({
             </>
           ) : lastFinishedId ? (
             <>
-              <button onClick={() => router.push(`/play/${lastFinishedId}/result`)} className={secondary}>
+              <button onClick={() => go(`/play/${lastFinishedId}/result`)} disabled={pending} className={secondary}>
                 결과 보기
               </button>
               <button onClick={() => start(true)} disabled={pending} className={primary}>

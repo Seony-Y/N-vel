@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { CaseActions } from "@/components/CaseActions";
 import { FavoriteButton } from "@/components/FavoriteButton";
 import { SiteHeader } from "@/components/SiteHeader";
+import { LinkPending } from "@/components/LinkPending";
 import { Loading } from "@/components/Loading";
 import { requireUserId } from "@/lib/auth";
 import { emptyProgress, myFavoriteCases, myPlayedCases } from "@/lib/game/catalog";
@@ -73,6 +74,7 @@ async function MyPlays({ searchParams }: { searchParams: PageProps<"/my/plays">[
             className={`-mb-px border-b-2 px-3 py-2 text-sm ${tab === t ? "border-red-600 font-semibold" : "border-transparent text-zinc-500 hover:text-zinc-800 dark:hover:text-zinc-200"}`}
           >
             {TABS[t]} <span className="text-xs text-zinc-400">{counts[t]}</span>
+            <LinkPending />
           </Link>
         ))}
       </nav>

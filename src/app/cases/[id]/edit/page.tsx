@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
 import { CaseEditor } from "@/components/case-editor/CaseEditor";
+import { Loading } from "@/components/Loading";
 import { SiteHeader } from "@/components/SiteHeader";
 import { requireUserId } from "@/lib/auth";
 import { toCaseFile } from "@/lib/cases/import";
@@ -13,7 +14,7 @@ export default function EditCasePage({ params }: PageProps<"/cases/[id]/edit">) 
   return (
     <>
       <SiteHeader />
-      <Suspense>
+      <Suspense fallback={<Loading />}>
         <EditCase params={params} />
       </Suspense>
     </>

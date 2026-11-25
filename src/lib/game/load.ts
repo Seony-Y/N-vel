@@ -1,17 +1,22 @@
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, getTableColumns } from "drizzle-orm";
 import { db } from "@/db";
 import { breakpoints, cases, clues, locations, playMessages, playSessions, suspects } from "@/db/schema";
 
 /** 사건 전체 (진상 포함). 서버 안에서만 쓴다. 화면으로 보낼 때는 public.ts 를 거칠 것 */
 export async function loadCase(caseId: string) {
-  const [c] = await db.select().from(cases).where(eq(cases.id, caseId));
-  if (!c) return null;
-  const [locs, sus, cls] = await Promise.all([
+  // 서로 기다리지 않도록 한꺼번에 읽는다
+  const [[c], locs, sus, cls, bps] = await Promise.all([
+    db.select().from(cases).where(eq(cases.id, caseId)),
     db.select().from(locations).where(eq(locations.caseId, caseId)).orderBy(asc(locations.sortOrder)),
     db.select().from(suspects).where(eq(suspects.caseId, caseId)).orderBy(asc(suspects.sortOrder)),
     db.select().from(clues).where(eq(clues.caseId, caseId)).orderBy(asc(clues.sortOrder)),
+    db
+      .select(getTableColumns(breakpoints))
+      .from(breakpoints)
+      .innerJoin(suspects, eq(suspects.id, breakpoints.suspectId))
+      .where(eq(suspects.caseId, caseId)),
   ]);
-  const bps = sus.length ? await db.select().from(breakpoints).where(inArray(breakpoints.suspectId, sus.map((s) => s.id))) : [];
+  if (!c) return null;
   return { case: c, locations: locs, suspects: sus, clues: cls, breakpoints: bps };
 }
 

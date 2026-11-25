@@ -3,13 +3,16 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
-import { SandboxedHtml } from "@/components/SandboxedHtml";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
-import { EFFICIENCY_HALF_RATIO, GUIDE_NOTE_MIN, HINT_PENALTY, MAX_EVIDENCE, MAX_NARRATIVE, POINTS, SOLVED_SCORE } from "@/lib/game/rules";
 import { STATEMENT_PREFIX } from "@/lib/game/statements";
+import { AccuseModal, ActionsBadge, Bubble, ClueModal, FoundClue, Guide, LockInput, Modal, type ModelOption, ModelPicker, Notebook, StoryModal, useDismiss } from "./parts";
 
 const TRAILER = "\u001e";
 const FOUND_PREFIX = "🔍 단서 발견: ";
+const PAINT_MS = 50; // 답이 들어올 때 화면을 다시 그리는 간격
+const NEAR_BOTTOM = 80; // 맨 아래에서 이만큼 안이면 새 글을 따라 내려간다 (위로 올려 읽는 중이면 그대로 둔다)
+const RESYNC_TRIES = 12; // 답이 도중에 끊겼을 때 서버에 저장된 결과를 다시 물어보는 횟수
+const RESYNC_MS = 2500;
 
 type Target = "narrator" | string; // 용의자 id
 
@@ -21,31 +24,10 @@ function readStorage(key: string) {
     return null;
   }
 }
-/** 눌러서 연 창(증거 목록, 말풍선 등): 바깥을 누르거나 Esc 를 누르면 닫는다. 돌려준 ref 를 창과 여는 버튼을 감싼 요소에 단다 */
-function useDismiss<T extends HTMLElement>(open: boolean, close: () => void) {
-  const ref = useRef<T>(null);
-  useEffect(() => {
-    if (!open) return;
-    const onDown = (e: PointerEvent) => {
-      if (ref.current && !ref.current.contains(e.target as Node)) close();
-    };
-    const onKey = (e: KeyboardEvent) => e.key === "Escape" && close();
-    document.addEventListener("pointerdown", onDown);
-    document.addEventListener("keydown", onKey);
-    return () => {
-      document.removeEventListener("pointerdown", onDown);
-      document.removeEventListener("keydown", onKey);
-    };
-  }, [open, close]);
-  return ref;
-}
-
 function subscribeStorage(onChange: () => void) {
   window.addEventListener("storage", onChange);
   return () => window.removeEventListener("storage", onChange);
 }
-type ModelOption = { id: string; label: string; description: string; credits: number };
-
 export function PlayScreen({
   data,
   initialState,
@@ -65,9 +47,12 @@ export function PlayScreen({
   const [state, setState] = useState(initialState);
   const [messages, setMessages] = useState(initialMessages);
   const [target, setTarget] = useState<Target>("narrator");
-  const [input, setInput] = useState("");
-  const [streaming, setStreaming] = useState<string | null>(null);
+  const [drafts, setDrafts] = useState<Record<string, string>>({}); // 쓰던 글. 대화 상대마다 따로 둔다
+  const [stream, setStream] = useState<{ thread: string; text: string } | null>(null); // 지금 들어오는 답. 어느 대화의 답인지 함께 둔다
   const [busy, setBusy] = useState(false);
+  const acting = useRef(false); // busy 가 화면에 반영되기 전에 두 번 보내지 않게
+  const [talkOffer, setTalkOffer] = useState<string | null>(null); // 나레이터가 마주하게 한 용의자
+  const [finishing, setFinishing] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [openClue, setOpenClue] = useState<PublicClue | null>(null);
   const [presenting, setPresenting] = useState(false);
@@ -94,6 +79,9 @@ export function PlayScreen({
   const suspect = data.suspects.find((s) => s.id === target) ?? null;
   const location = data.locations.find((l) => l.id === state.currentLocationId) ?? null;
   const thread = target === "narrator" ? "narrator" : target;
+  const input = drafts[thread] ?? "";
+  const setInput = (v: string, at = thread) => setDrafts((d) => ({ ...d, [at]: v }));
+  const streaming = stream?.thread === thread ? stream.text : null;
   const threadMessages = useMemo(() => messages.filter((m) => m.thread === thread), [messages, thread]);
   const badges = (
     <div className="flex flex-wrap items-center gap-1.5">
@@ -114,14 +102,16 @@ export function PlayScreen({
     </div>
   );
 
-  const bottomRef = useRef<HTMLDivElement>(null);
+  const listRef = useRef<HTMLDivElement>(null);
+  const stick = useRef(true); // 맨 아래를 보고 있는지
   const shownThread = useRef(thread);
   useEffect(() => {
-    // 대화 상대를 바꿨을 때는 기다리지 않고 바로 맨 아래로, 새 메시지가 올 때만 부드럽게
-    const switched = shownThread.current !== thread;
+    const el = listRef.current;
+    if (!el) return;
+    if (shownThread.current !== thread) stick.current = true; // 대화 상대를 바꾸면 맨 아래부터
     shownThread.current = thread;
-    bottomRef.current?.scrollIntoView({ behavior: switched ? "instant" : "smooth", block: "end" });
-  }, [threadMessages.length, streaming, thread]);
+    if (stick.current) el.scrollTop = el.scrollHeight;
+  }, [threadMessages.length, streaming, thread, talkOffer]);
 
   function flash(text: string) {
     setToast(text);
@@ -143,27 +133,54 @@ export function PlayScreen({
     return json;
   }
 
+  /** 답이 도중에 끊겼을 때: 서버는 끝까지 받아 저장하므로, 저장된 결과가 나올 때까지 기다렸다가 화면을 맞춘다 */
+  async function resync(at: string) {
+    for (let i = 0; i < RESYNC_TRIES; i++) {
+      if (i) await new Promise((r) => setTimeout(r, RESYNC_MS));
+      const r = (await fetch(`/api/play/${state.sessionId}/state`)
+        .then((res) => (res.ok ? res.json() : null))
+        .catch(() => null)) as { state: PublicState; messages: PublicMessage[]; credits: number } | null;
+      if (!r) continue;
+      setState(r.state);
+      setMessages(r.messages);
+      setCredits(r.credits);
+      if (r.messages.filter((m) => m.thread === at && m.role !== "event").at(-1)?.role === "assistant") return true;
+    }
+    return false;
+  }
+
   async function act(message: string, presentClueId?: string) {
-    if (busy) return;
+    if (acting.current) return;
+    acting.current = true;
+    const at = thread;
+    stick.current = true;
     setBusy(true);
     setError(null);
+    setTalkOffer(null);
     const clue = presentClueId ? state.foundClues.find((c) => c.id === presentClueId) : null;
     const tempId = crypto.randomUUID();
     setMessages((m) => [...m, { id: tempId, thread, role: "user", content: clue ? `[증거 제시: ${clue.name}] ${clue.description}${message ? `\n${message}` : ""}` : message }]);
-    setInput("");
-    setStreaming("");
+    setInput("", at);
+    setStream({ thread: at, text: "" });
+    const undo = () => {
+      setMessages((m) => m.filter((x) => x.id !== tempId));
+      setInput(message, at);
+    };
 
     try {
       const res = await fetch(`/api/play/${state.sessionId}/act`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ target, message, presentClueId }),
-      });
+      }).catch(() => null);
+      if (!res) {
+        undo();
+        throw new Error("인터넷 연결이 끊겨 보내지 못했어요. 연결을 확인하고 다시 보내 주세요");
+      }
       if (!res.ok || !res.body) {
         const json = await res.json().catch(() => ({}));
         // 행동이 처리되지 않았으므로 방금 띄운 내 메시지를 거두고 입력을 되돌린다
-        setMessages((m) => m.filter((x) => x.id !== tempId));
-        setInput(message);
+        undo();
         if (json.code === "NO_CREDITS") setCredits(json.credits);
         throw new Error(json.error ?? "요청에 실패했습니다");
       }
@@ -171,38 +188,53 @@ export function PlayScreen({
       const reader = res.body.getReader();
       const decoder = new TextDecoder();
       let raw = "";
-      for (;;) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        raw += decoder.decode(value, { stream: true });
-        setStreaming(raw.split(TRAILER)[0]);
-      }
+      let painted = 0;
+      try {
+        for (;;) {
+          const { done, value } = await reader.read();
+          if (done) break;
+          raw += decoder.decode(value, { stream: true });
+          if (Date.now() - painted < PAINT_MS) continue;
+          painted = Date.now();
+          setStream({ thread: at, text: raw.split(TRAILER)[0] });
+        }
+      } catch {} // 도중에 끊김: 아래에서 저장된 결과로 맞춘다
 
       const [text, trailer] = raw.split(TRAILER);
+      if (!trailer) {
+        setStream({ thread: at, text: `${text.trim()}\n\n(연결이 끊겨 나머지를 불러오는 중…)`.trim() });
+        if (!(await resync(at))) throw new Error("답을 끝까지 받지 못했어요. 새로고침하면 저장된 내용을 볼 수 있어요");
+        return;
+      }
       const result = trailer ? (JSON.parse(trailer) as { state: PublicState; events: string[]; talkTo: string | null; suggestions?: string[]; credits: number }) : null;
-      pushLocal({ thread, role: "assistant", content: text.trim() }, ...(result?.events ?? []).map((content) => ({ thread, role: "event" as const, content })));
+      pushLocal({ thread: at, role: "assistant", content: text.trim() }, ...(result?.events ?? []).map((content) => ({ thread: at, role: "event" as const, content })));
       if (result) {
         setState(result.state);
         setCredits(result.credits);
         const found = result.events.filter((e) => e.startsWith(FOUND_PREFIX)).length;
         if (found) flash(`🔍 단서 ${found}개 발견 · 수첩에 적었어요`);
-        setSuggested((s) => ({ ...s, [thread]: result.suggestions ?? [] }));
-        // 나레이터가 용의자를 마주하는 장면으로 넘겼으면 바로 심문 화면으로
-        if (result.talkTo) setTarget(result.talkTo);
+        setSuggested((s) => ({ ...s, [at]: result.suggestions ?? [] }));
+        // 나레이터가 용의자를 마주하게 했으면, 글을 읽고 넘어갈 수 있게 심문 버튼을 띄운다
+        if (result.talkTo) setTalkOffer(result.talkTo);
       }
     } catch (e) {
       setError((e as Error).message);
     } finally {
-      setStreaming(null);
+      setStream(null);
       setBusy(false);
+      acting.current = false;
     }
   }
 
   async function move(locationId: string) {
+    const loc = data.locations.find((l) => l.id === locationId);
+    if (!loc) return;
+    if (busy && locationId !== state.currentLocationId) return flash("답이 끝난 뒤에 이동할 수 있어요");
     setTarget("narrator");
     setMobileTab("play");
-    const loc = data.locations.find((l) => l.id === locationId);
-    if (!loc || locationId === state.currentLocationId || busy) return;
+    setError(null);
+    if (locationId === state.currentLocationId) return;
+    setTalkOffer(null);
     // 화면은 바로 옮기고, 저장은 뒤에서 한다 (장소 정보는 이미 화면에 있음)
     const before = state.currentLocationId;
     setState((s) => ({ ...s, currentLocationId: locationId }));
@@ -475,6 +507,8 @@ export function PlayScreen({
 
   // 사건을 끝낼 때(추리 제출·포기)는 따로 묻지 않고 메모를 저장해 둔다
   async function finish(path: "giveup" | null) {
+    if (finishing) return;
+    setFinishing(true);
     if (notesDirty) await saveNotes();
     try {
       if (path) await post(path);
@@ -483,6 +517,8 @@ export function PlayScreen({
       } catch {}
       router.push(`/play/${state.sessionId}/result`);
     } catch (e) {
+      setFinishing(false);
+      setConfirmGiveUp(false);
       setError((e as Error).message);
     }
   }
@@ -534,20 +570,40 @@ export function PlayScreen({
 
           {data.guide.length > 0 && <Guide data={data} state={state} messages={messages} notes={notes} onHint={hint} />}
 
-          <div className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4">
+          <div
+            ref={listRef}
+            onScroll={(e) => {
+              const el = e.currentTarget;
+              stick.current = el.scrollHeight - el.scrollTop - el.clientHeight < NEAR_BOTTOM;
+            }}
+            className="min-h-0 flex-1 space-y-3 overflow-y-auto px-4 py-4"
+          >
             {threadMessages.length === 0 && (
               <p className="py-8 text-center text-sm text-zinc-400">{suspect ? `${suspect.name}에게 질문해 보세요. 수첩의 단서를 증거로 제시할 수도 있어요.` : data.scripted ? "아래 선택지에서 할 행동을 골라 보세요." : "무엇을 조사할지 입력해 보세요. 예) 책상 서랍을 열어본다"}</p>
             )}
             {threadMessages.map((m) => {
               const found = m.role === "event" && m.content.startsWith(FOUND_PREFIX) ? state.foundClues.find((c) => c.name === m.content.slice(FOUND_PREFIX.length).trim()) : null;
               return found ? (
-                <FoundClue key={m.id} clue={found} suspects={data.suspects} inInterrogation={!!suspect} onOpen={() => setOpenClue(found)} />
+                <FoundClue key={m.id} clue={found} suspects={data.suspects} inInterrogation={!!suspect} onOpen={setOpenClue} />
               ) : (
                 <Bubble key={m.id} m={m} name={suspect?.name} />
               );
             })}
             {streaming !== null && <Bubble m={{ id: "s", thread, role: "assistant", content: streaming || "…" }} name={suspect?.name} />}
-            <div ref={bottomRef} />
+            {!suspect && talkOffer && !busy && (
+              <div className="text-center">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setTarget(talkOffer);
+                    setTalkOffer(null);
+                  }}
+                  className="rounded-full bg-red-600 px-4 py-2 text-sm font-semibold text-white shadow-sm hover:bg-red-700"
+                >
+                  🗣 {data.suspects.find((s) => s.id === talkOffer)?.name} 심문하기
+                </button>
+              </div>
+            )}
           </div>
 
           {/* 잠금 장치 */}
@@ -694,8 +750,8 @@ export function PlayScreen({
             <button onClick={() => setConfirmGiveUp(false)} className="rounded-lg px-4 py-2 hover:bg-zinc-100 dark:hover:bg-zinc-800">
               계속 수사
             </button>
-            <button onClick={() => finish("giveup")} className="rounded-lg bg-zinc-700 px-4 py-2 font-medium text-white hover:bg-zinc-600">
-              포기하기
+            <button onClick={() => finish("giveup")} disabled={finishing} className="rounded-lg bg-zinc-700 px-4 py-2 font-medium text-white hover:bg-zinc-600 disabled:opacity-60">
+              {finishing ? "정리하는 중…" : "포기하기"}
             </button>
           </div>
         </Modal>
@@ -732,624 +788,5 @@ export function PlayScreen({
       )}
       {toast && <div className="fixed bottom-6 left-1/2 z-50 -translate-x-1/2 rounded-full bg-zinc-900 px-4 py-2 text-sm text-white shadow-lg dark:bg-white dark:text-zinc-900">{toast}</div>}
     </div>
-  );
-}
-
-/** 수사 도중 모델 바꾸기. 다음 행동부터 적용된다 */
-function ModelPicker({ models, value, disabled, onChange }: { models: ModelOption[]; value: string; disabled: boolean; onChange: (id: string) => void }) {
-  return (
-    <select
-      value={value}
-      disabled={disabled}
-      onChange={(e) => onChange(e.target.value)}
-      aria-label="AI 모델"
-      title="AI 모델 (다음 행동부터 적용)"
-      className="rounded-full border border-zinc-200 bg-white py-1 pr-7 pl-2.5 text-xs font-medium outline-none focus:outline-none disabled:opacity-60 dark:border-zinc-700 dark:bg-zinc-900"
-    >
-      {models.map((m) => (
-        <option key={m.id} value={m.id}>
-          {m.label} 💎{m.credits}
-        </option>
-      ))}
-    </select>
-  );
-}
-
-/**
- * 쓴 행동 수. 목표 행동 수가 있으면 함께 보여 주고, 목표 안이면 초록·넘으면 주황 (막지는 않는다).
- * 마우스를 올리거나 누르면 말풍선으로 설명한다 (휴대폰에서는 title 툴팁이 보이지 않아서)
- */
-function ActionsBadge({ used, target }: { used: number; target: number | null }) {
-  const [open, setOpen] = useState(false);
-  const close = useCallback(() => setOpen(false), []);
-  const ref = useDismiss<HTMLSpanElement>(open, close);
-  const counted = "조사·질문·증거 제시 1번이 행동 1회예요 (비밀번호를 틀려도 1회, 어려움에서는 단서 잇기를 틀려도 1회). 장소 이동, 메모, 힌트, 추리 제출은 세지 않아요.";
-  const over = !!target && used > target;
-  return (
-    <span ref={ref} className="relative inline-block" onMouseEnter={() => setOpen(true)} onMouseLeave={() => setOpen(false)}>
-      <button
-        type="button"
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-        className={
-          target
-            ? `rounded-full px-2.5 py-1 text-xs font-medium tabular-nums outline-none ${over ? "bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-200" : "bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-200"}`
-            : "text-xs text-zinc-400 outline-none"
-        }
-      >
-        {target ? `🎯 행동 ${used} / 목표 ${target}` : `행동 ${used}회`}
-      </button>
-      {open && (
-        <span role="tooltip" className="absolute right-0 top-full z-30 mt-1.5 block w-64 rounded-lg bg-zinc-900 px-3 py-2 text-left text-xs leading-relaxed text-white shadow-lg dark:bg-white dark:text-zinc-900">
-          {target ? (
-            <>
-              <b className="font-semibold">목표를 넘겨도 실패가 아니에요.</b> 행동 수에 제한은 없어요.
-              <br />
-              범인을 맞히면서 {target}회 안에 풀면 효율 보너스 <b className="font-semibold">+{POINTS.efficiency}점</b>, {Math.floor(target * EFFICIENCY_HALF_RATIO)}회 안이면 +{POINTS.efficiency / 2}점을 더 받아요.
-              <span className="mt-1 block opacity-70">{counted}</span>
-            </>
-          ) : (
-            <>
-              이 사건은 행동 수 제한도 보너스도 없어요.
-              <span className="mt-1 block opacity-70">{counted}</span>
-            </>
-          )}
-        </span>
-      )}
-    </span>
-  );
-}
-
-/**
- * 프롤로그 사건의 단계별 안내. 목표를 이뤘는지는 화면에 이미 있는 기록(이동·발견한 단서·대화)으로 판단한다.
- * 이룬 단계는 건너뛰므로 순서를 바꿔 진행해도 맞는 단계가 보인다
- */
-function Guide({ data, state, messages, notes, onHint }: { data: PublicCase; state: PublicState; messages: PublicMessage[]; notes: string; onHint: () => void }) {
-  const [expanded, setExpanded] = useState(false);
-  const [folded, setFolded] = useState(false);
-
-  const done = data.guide.map(({ goal }) => {
-    if (!goal) return true;
-    const asked = (thread: string, prefix = "") => messages.some((m) => m.thread === thread && m.role === "user" && m.content.startsWith(prefix));
-    switch (goal.type) {
-      case "visit": {
-        const loc = data.locations.find((l) => l.id === goal.target);
-        return state.currentLocationId === goal.target || messages.some((m) => m.thread === "narrator" && m.role === "event" && m.content.startsWith(`📍 ${loc?.name}\n`));
-      }
-      case "find":
-        return state.foundClues.some((c) => c.id === goal.target);
-      case "talk":
-        return asked(goal.target ?? "");
-      case "present": {
-        const clue = state.foundClues.find((c) => c.id === goal.clue);
-        return !!clue && asked(goal.target ?? "", `[증거 제시: ${clue.name}]`);
-      }
-      case "note":
-        return notes.trim().length >= GUIDE_NOTE_MIN;
-    }
-  });
-  const firstLeft = done.findIndex((d) => !d);
-  const current = firstLeft === -1 ? data.guide.length - 1 : firstLeft;
-  const step = data.guide[current];
-
-  return (
-    <div className="border-b border-emerald-200 bg-emerald-50 px-4 py-2.5 text-sm dark:border-emerald-900 dark:bg-emerald-950/30">
-      <div className="flex items-center justify-between gap-2">
-        <button type="button" onClick={() => setFolded((v) => !v)} className="min-w-0 truncate text-left font-semibold text-emerald-800 dark:text-emerald-200">
-          🧭 가이드 {current + 1}/{data.guide.length} · {step.title}
-        </button>
-        <div className="flex shrink-0 gap-1 text-xs">
-          {!folded && (
-            <button type="button" onClick={() => setExpanded((v) => !v)} className="rounded-md px-2 py-1 text-emerald-700 hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-900/40">
-              {expanded ? "현재 단계만" : "전체 단계"}
-            </button>
-          )}
-          <button type="button" onClick={() => setFolded((v) => !v)} className="rounded-md px-2 py-1 text-emerald-700 hover:bg-emerald-100 dark:text-emerald-300 dark:hover:bg-emerald-900/40">
-            {folded ? "펼치기" : "접기"}
-          </button>
-        </div>
-      </div>
-      {!folded &&
-        (expanded ? (
-          <ol className="mt-2 max-h-64 space-y-2 overflow-y-auto">
-            {data.guide.map((g, i) => (
-              <li key={i} className={i === current ? "" : "opacity-60"}>
-                <div className="font-medium">
-                  {done[i] && i !== current ? "✅" : i === current ? "👉" : "▫️"} {i + 1}. {g.title}
-                </div>
-                {i === current && <p className="mt-0.5 whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{g.body}</p>}
-              </li>
-            ))}
-          </ol>
-        ) : (
-          <div className="mt-1 max-h-48 overflow-y-auto">
-            <p className="whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{step.body}</p>
-            {/* 메모 쓰기 단계: 얼마나 썼는지 */}
-            {step.goal?.type === "note" && (
-              <p className="mt-2 text-xs font-medium text-emerald-700 dark:text-emerald-300">
-                ✏️ 수첩 메모 {Math.min(notes.trim().length, GUIDE_NOTE_MIN)} / {GUIDE_NOTE_MIN}자 · 수첩 탭(모바일) 또는 오른쪽 수첩의 메모 칸에 써 주세요
-              </p>
-            )}
-            {/* 마지막 단계(추리 제출): 자신이 없으면 제출 전에 여기서 바로 힌트를 볼 수 있게 */}
-            {current === data.guide.length - 1 && state.hintsTotal > 0 && (
-              <div className="mt-2 space-y-1.5">
-                {state.hints.map((h, i) => (
-                  <p key={i} className="rounded-lg bg-white px-3 py-2 text-zinc-700 dark:bg-zinc-900 dark:text-zinc-300">
-                    💡 {i + 1}. {h}
-                  </p>
-                ))}
-                {state.hintsUsed < state.hintsTotal && (
-                  <button type="button" onClick={onHint} className="rounded-lg border border-emerald-400 px-3 py-1.5 text-xs font-medium text-emerald-800 hover:bg-emerald-100 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-900/40">
-                    💡 힌트 {state.hintsUsed + 1} 보기 (-{HINT_PENALTY}점, {state.hintsTotal - state.hintsUsed}개 남음)
-                  </button>
-                )}
-              </div>
-            )}
-          </div>
-        ))}
-    </div>
-  );
-}
-
-function Bubble({ m, name }: { m: PublicMessage; name?: string }) {
-  if (m.role === "event" && m.content.startsWith(STATEMENT_PREFIX)) return <p className="text-center text-xs text-zinc-400">{m.content}</p>;
-  if (m.role === "event") {
-    return <div className="mx-auto max-w-md whitespace-pre-wrap rounded-lg bg-amber-50 px-3 py-2 text-center text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">{m.content}</div>;
-  }
-  const mine = m.role === "user";
-  return (
-    <div className={`flex ${mine ? "justify-end" : "justify-start"}`}>
-      <div className={`max-w-[85%] whitespace-pre-wrap rounded-2xl px-4 py-2.5 text-sm leading-relaxed ${mine ? "rounded-br-sm bg-red-600 text-white" : "rounded-bl-sm bg-zinc-100 dark:bg-zinc-800"}`}>
-        {!mine && name && <div className="mb-0.5 text-xs font-semibold text-zinc-500">{name}</div>}
-        {m.content}
-      </div>
-    </div>
-  );
-}
-
-/** 대화 중에 찾은 단서: 무엇을 찾았는지, 누구와 관련 있어 보이는지, 이걸로 무엇을 할 수 있는지 */
-function FoundClue({ clue, suspects, inInterrogation, onOpen }: { clue: PublicClue; suspects: PublicCase["suspects"]; inInterrogation: boolean; onOpen: () => void }) {
-  // 단서 내용에 이름이 나오는 사람만 보여 준다 (내용에 이미 있는 정보라 정답을 흘리지 않음)
-  const related = suspects.filter((s) => clue.description.includes(s.name));
-  return (
-    <div className="mx-auto w-full max-w-md rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm dark:border-amber-800 dark:bg-amber-950/30">
-      <div className="flex items-start justify-between gap-2">
-        <div>
-          <div className="text-xs font-medium text-amber-700 dark:text-amber-300">🔍 단서 발견 · {clue.source}</div>
-          <div className="mt-0.5 font-semibold text-zinc-900 dark:text-zinc-100">{clue.name}</div>
-        </div>
-        <button type="button" onClick={onOpen} className="shrink-0 rounded-md px-2 py-1 text-xs font-medium text-amber-800 hover:bg-amber-100 dark:text-amber-200 dark:hover:bg-amber-900/40">
-          자세히
-        </button>
-      </div>
-      <p className="mt-1.5 whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{clue.description}</p>
-      <p className="mt-2 text-xs text-zinc-500">
-        {related.length ? `관련 인물: ${related.map((s) => s.name).join(", ")} · ` : ""}
-        {inInterrogation ? "수첩에 적었어요. 이 내용을 더 캐묻거나 다른 용의자에게 증거로 제시해 보세요." : "수첩에 적었어요. 용의자를 심문할 때 '증거 제시'로 들이밀 수 있어요."}
-      </p>
-    </div>
-  );
-}
-
-function LockInput({ label, disabled, onSubmit }: { label: string; disabled: boolean; onSubmit: (code: string) => void }) {
-  const [code, setCode] = useState("");
-  return (
-    <form
-      onSubmit={(e) => {
-        e.preventDefault();
-        if (code.trim()) {
-          onSubmit(code.trim());
-          setCode("");
-        }
-      }}
-      className="space-y-1.5 border-t border-zinc-200 bg-zinc-50 px-3 py-2.5 dark:border-zinc-800 dark:bg-zinc-950"
-    >
-      {/* 윗줄: 잠긴 물건과 안내 / 아랫줄: 입력칸과 열기 (좁은 화면에서 한 줄에 몰리지 않게) */}
-      <div className="flex items-baseline justify-between gap-2">
-        <span className="min-w-0 truncate text-sm font-medium">🔒 {label}</span>
-        <span className="shrink-0 whitespace-nowrap text-[11px] text-zinc-400">틀리면 행동 1회</span>
-      </div>
-      <div className="flex gap-2">
-        <input
-          value={code}
-          onChange={(e) => setCode(e.target.value)}
-          placeholder="비밀번호 입력"
-          maxLength={30}
-          disabled={disabled}
-          autoComplete="off"
-          autoCapitalize="off"
-          spellCheck={false}
-          aria-label={`${label} 비밀번호`}
-          className="min-w-0 flex-1 rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-900"
-        />
-        <button type="submit" disabled={disabled || !code.trim()} className="shrink-0 whitespace-nowrap rounded-lg bg-zinc-800 px-4 py-2 text-sm font-medium text-white disabled:opacity-50 dark:bg-zinc-200 dark:text-zinc-900">
-          열기
-        </button>
-      </div>
-    </form>
-  );
-}
-
-/** 수첩: 단서·진술·힌트·메모. 추리 제출과 수사 포기는 대화창 위에 따로 있다 */
-function Notebook({
-  state,
-  statements,
-  onCombine,
-  onOpenClue,
-  onHint,
-  notes,
-  onNotesChange,
-  restorable,
-  notesDirty,
-  savingNotes,
-  onSaveNotes,
-}: {
-  state: PublicState;
-  statements: { name: string; items: PublicMessage[] }[]; // 용의자별 진술
-  onCombine: (clueIds: string[]) => Promise<boolean>;
-  onOpenClue: (c: PublicClue) => void;
-  onHint: () => void;
-  notes: string;
-  onNotesChange: (v: string) => void;
-  restorable: string | null; // 지난번에 임시저장하지 않은 메모
-  notesDirty: boolean;
-  savingNotes: boolean;
-  onSaveNotes: () => void;
-}) {
-  // 단서 연결: 고르는 중이면 고른 단서 id 목록, 아니면 null
-  const [linking, setLinking] = useState<string[] | null>(null);
-  const [pending, setPending] = useState(false);
-  const [showStep, setShowStep] = useState(false);
-  const toggle = (id: string) => setLinking((l) => l && (l.includes(id) ? l.filter((x) => x !== id) : l.length < 3 ? [...l, id] : l));
-
-  return (
-    <div className="space-y-5 rounded-2xl border border-zinc-200 bg-white p-4 dark:border-zinc-800 dark:bg-zinc-900">
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">📒 단서 ({state.foundClues.length})</h3>
-          {state.links.total > 0 && state.foundClues.length >= 2 && (
-            <button type="button" onClick={() => setLinking(linking ? null : [])} className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 dark:hover:bg-red-950/30">
-              {linking ? "취소" : `🧩 단서 잇기 (${state.links.found}/${state.links.total})`}
-            </button>
-          )}
-        </div>
-        {!linking && state.links.ready && <p className="mb-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">🧩 지금 이을 수 있는 단서가 있어요!</p>}
-        {linking && (
-          <div className="mb-2 space-y-2 rounded-lg bg-amber-50 px-3 py-2 text-xs leading-relaxed text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-            <p>함께 보면 새로운 사실이 드러나는 단서 2~3개를 고르세요. 맞으면 새 단서를 얻고{state.mode === "hard" ? ", 틀리면 행동 1회로 세요" : ", 틀려도 괜찮아요"}. 크레딧은 들지 않아요.</p>
-            <button
-              type="button"
-              disabled={linking.length < 2 || pending}
-              onClick={async () => {
-                setPending(true);
-                if (await onCombine(linking)) setLinking(null);
-                setPending(false);
-              }}
-              className="w-full rounded-lg bg-red-600 py-2 font-semibold text-white hover:bg-red-700 disabled:opacity-50"
-            >
-              {linking.length}개 잇기
-            </button>
-          </div>
-        )}
-        {state.foundClues.length === 0 ? (
-          <p className="text-sm text-zinc-400">아직 찾은 단서가 없어요.</p>
-        ) : (
-          <ul className="space-y-1.5">
-            {state.foundClues.map((c) => (
-              <li key={c.id}>
-                <button
-                  onClick={() => (linking ? toggle(c.id) : onOpenClue(c))}
-                  aria-pressed={linking ? linking.includes(c.id) : undefined}
-                  className={`block w-full rounded-lg border px-3 py-2 text-left hover:border-red-300 ${linking?.includes(c.id) ? "border-red-600 bg-red-50 dark:bg-red-950/30" : "border-zinc-200 dark:border-zinc-800"}`}
-                >
-                  <div className="text-sm font-medium">{c.name}</div>
-                  <div className="text-xs text-zinc-500">{c.source}</div>
-                </button>
-              </li>
-            ))}
-          </ul>
-        )}
-      </div>
-
-      {/* 쉬움: 막혔을 때 다음에 할 일 (무료, 감점 없음) */}
-      {state.nextStep && (
-        <div>
-          <button type="button" onClick={() => setShowStep((v) => !v)} aria-expanded={showStep} className="w-full rounded-lg border border-emerald-400 px-3 py-2 text-sm font-medium text-emerald-800 hover:bg-emerald-50 dark:border-emerald-800 dark:text-emerald-200 dark:hover:bg-emerald-950/30">
-            🧭 막혔어요, 뭘 할까요? (무료)
-          </button>
-          {showStep && <p className="mt-2 rounded-lg bg-emerald-50 px-3 py-2 text-sm leading-relaxed text-emerald-900 dark:bg-emerald-950/30 dark:text-emerald-100">{state.nextStep}</p>}
-        </div>
-      )}
-
-      {statements.length > 0 && (
-        <div>
-          <h3 className="mb-2 text-sm font-semibold">📝 진술</h3>
-          <div className="space-y-2">
-            {statements.map((s) => (
-              <details key={s.name} open className="rounded-lg border border-zinc-200 px-3 py-2 text-sm dark:border-zinc-800">
-                <summary className="cursor-pointer font-medium">
-                  {s.name} <span className="text-xs font-normal text-zinc-400">{s.items.length}</span>
-                </summary>
-                <ul className="mt-1.5 list-disc space-y-1 pl-4 leading-relaxed text-zinc-600 dark:text-zinc-300">
-                  {s.items.map((m) => (
-                    <li key={m.id}>{m.content.slice(STATEMENT_PREFIX.length)}</li>
-                  ))}
-                </ul>
-              </details>
-            ))}
-          </div>
-          <p className="mt-1.5 text-xs text-zinc-400">용의자가 한 말이에요. 사실이 아닐 수 있으니 단서와 비교해 보세요.</p>
-        </div>
-      )}
-
-      <div>
-        <div className="mb-2 flex items-center justify-between">
-          <h3 className="text-sm font-semibold">💡 힌트</h3>
-          <button
-            onClick={onHint}
-            disabled={state.hintsUsed >= state.hintsTotal}
-            className="rounded-md px-2 py-1 text-xs font-medium text-red-600 hover:bg-red-50 disabled:text-zinc-400 disabled:hover:bg-transparent dark:hover:bg-red-950/30"
-          >
-            {state.hintsUsed >= state.hintsTotal ? "힌트 없음" : `힌트 보기 (-${HINT_PENALTY}점, ${state.hintsTotal - state.hintsUsed}개 남음)`}
-          </button>
-        </div>
-        {state.hints.map((h, i) => (
-          <p key={i} className="mb-1.5 rounded-lg bg-zinc-50 px-3 py-2 text-sm dark:bg-zinc-800/50">
-            {h}
-          </p>
-        ))}
-      </div>
-
-      {/* 메모는 자동 저장하지 않는다. 화면에서는 유지되고, 임시저장을 눌러야 저장된다 */}
-      <div>
-        <h3 className="mb-2 flex items-center justify-between text-sm font-semibold">
-          ✏️ 메모
-          <span className={`text-xs font-normal ${notesDirty ? "text-amber-600" : "text-zinc-400"}`}>{savingNotes ? "저장 중…" : notesDirty ? "저장 안 됨" : "저장됨"}</span>
-        </h3>
-        {restorable !== null && (
-          <div className="mb-2 flex items-center justify-between gap-2 rounded-lg bg-amber-50 px-3 py-2 text-xs text-amber-800 dark:bg-amber-950/30 dark:text-amber-200">
-            <span>지난번에 임시저장하지 않은 메모가 있어요</span>
-            <button type="button" onClick={() => onNotesChange(restorable)} className="shrink-0 rounded-md px-2 py-1 font-medium hover:bg-amber-100 dark:hover:bg-amber-900/40">
-              되살리기
-            </button>
-          </div>
-        )}
-        <textarea
-          value={notes}
-          onChange={(e) => onNotesChange(e.target.value)}
-          rows={6}
-          maxLength={10000}
-          placeholder="추리를 정리해 보세요"
-          className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950"
-        />
-        <div className="mt-1.5 flex items-center justify-between gap-2">
-          <p className={`text-xs ${notesDirty ? "text-amber-600" : "text-zinc-400"}`}>{notesDirty ? "나가기 전에 임시저장을 눌러 주세요" : "임시저장한 메모는 다음에 이어서 볼 수 있어요"}</p>
-          <button
-            onClick={onSaveNotes}
-            disabled={!notesDirty || savingNotes}
-            className="shrink-0 rounded-lg border border-zinc-300 px-3 py-1.5 text-xs font-medium hover:bg-zinc-100 disabled:opacity-50 dark:border-zinc-700 dark:hover:bg-zinc-800"
-          >
-            💾 임시저장
-          </button>
-        </div>
-      </div>
-    </div>
-  );
-}
-
-function Modal({ title, onClose, children }: { title: string; onClose: () => void; children: React.ReactNode }) {
-  return (
-    <div className="fixed inset-0 z-40 flex items-end justify-center bg-black/50 sm:items-center sm:p-4" onClick={onClose}>
-      <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-t-2xl bg-white p-5 sm:rounded-2xl dark:bg-zinc-900" onClick={(e) => e.stopPropagation()}>
-        <div className="mb-4 flex items-center justify-between">
-          <h2 className="text-lg font-semibold">{title}</h2>
-          <button onClick={onClose} className="rounded-lg px-2 py-1 text-zinc-500 hover:bg-zinc-100 dark:hover:bg-zinc-800" aria-label="닫기">
-            ✕
-          </button>
-        </div>
-        {children}
-      </div>
-    </div>
-  );
-}
-
-/** 사건 개요: 수사 도중에 무슨 사건인지 다시 확인한다 (사건 페이지에 공개된 정보만) */
-function StoryModal({ data, onClose }: { data: PublicCase; onClose: () => void }) {
-  return (
-    <Modal title={`📁 ${data.title}`} onClose={onClose}>
-      {data.tagline && <p className="mb-4 text-sm text-zinc-500">{data.tagline}</p>}
-      <h3 className="mb-1 text-sm font-semibold text-zinc-500">사건 개요</h3>
-      <p className="whitespace-pre-wrap leading-relaxed">{data.briefing}</p>
-      {data.victim && (
-        <>
-          <h3 className="mb-1 mt-5 text-sm font-semibold text-zinc-500">피해자</h3>
-          <p className="leading-relaxed">{data.victim}</p>
-        </>
-      )}
-      <h3 className="mb-2 mt-5 text-sm font-semibold text-zinc-500">용의자</h3>
-      <ul className="space-y-2">
-        {data.suspects.map((s) => (
-          <li key={s.id} className="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/50">
-            <div className="text-sm font-medium">
-              {s.name}
-              {s.age && <span className="ml-1 font-normal text-zinc-400">{s.age}세</span>}
-              <span className="ml-2 text-xs font-normal text-zinc-500">{s.role}</span>
-            </div>
-            {s.profile && <p className="mt-0.5 text-sm text-zinc-600 dark:text-zinc-400">{s.profile}</p>}
-          </li>
-        ))}
-      </ul>
-    </Modal>
-  );
-}
-
-function ClueModal({ clue, onClose }: { clue: PublicClue; onClose: () => void }) {
-  return (
-    <Modal title={clue.name} onClose={onClose}>
-      <p className="mb-3 text-xs text-zinc-500">{clue.source}</p>
-      {clue.image && (
-        // eslint-disable-next-line @next/next/no-img-element
-        <img src={clue.image} alt="" referrerPolicy="no-referrer" className="mb-3 w-full rounded-lg" />
-      )}
-      <p className="whitespace-pre-wrap leading-relaxed">{clue.description}</p>
-      {clue.docHtml && (
-        <div className="mt-4 h-80 overflow-hidden rounded-lg border border-zinc-200 dark:border-zinc-800">
-          <SandboxedHtml title={clue.name} code={clue.docHtml} className="h-full w-full border-0 bg-white" />
-        </div>
-      )}
-    </Modal>
-  );
-}
-
-function AccuseModal({
-  data,
-  state,
-  notes,
-  narrative,
-  onNarrative,
-  onClose,
-  onDone,
-}: {
-  data: PublicCase;
-  state: PublicState;
-  notes: string;
-  narrative: string;
-  onNarrative: (v: string) => void;
-  onClose: () => void;
-  onDone: () => void;
-}) {
-  const [culpritId, setCulpritId] = useState<string | null>(null);
-  const [answers, setAnswers] = useState<number[]>(data.quiz.map(() => -1));
-  const [evidence, setEvidence] = useState<string[]>([]);
-  const [error, setError] = useState<string | null>(null);
-  const [pending, setPending] = useState(false);
-  const ready = culpritId && answers.every((a) => a >= 0);
-  const checklist = data.guide.find((g) => g.goal?.type === "note")?.body;
-
-  async function submit() {
-    setPending(true);
-    setError(null);
-    // 서술 채점을 기다리느라 오래 걸릴 수 있다. 연결이 끊겨도 버튼이 멈춰 있지 않게
-    const res = await fetch(`/api/play/${state.sessionId}/accuse`, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ culpritId, answers, evidenceIds: evidence, narrative: data.scripted ? "" : narrative }),
-    }).catch(() => null);
-    if (!res?.ok) {
-      setError((await res?.json().catch(() => ({})))?.error ?? "제출하지 못했어요. 연결을 확인하고 다시 제출해 주세요");
-      setPending(false);
-      return;
-    }
-    onDone();
-  }
-
-  return (
-    <Modal title="⚖️ 추리 제출" onClose={onClose}>
-      <p className="mb-3 text-sm text-zinc-500">제출하면 사건이 끝나고 결과가 공개됩니다. 다시 수정할 수 없어요.</p>
-      {/* 채점 기준 (rules.ts 의 값 그대로) */}
-      <p className="mb-5 rounded-lg bg-zinc-50 px-3 py-2 text-xs leading-relaxed text-zinc-600 dark:bg-zinc-800/50 dark:text-zinc-400">
-        📊 범인 {POINTS.culprit}점 · 질문 {POINTS.quiz}점 · 결정적 증거 {POINTS.evidence}점 · 힌트 1개당 -{HINT_PENALTY}점
-        {!data.scripted && ` · 추리 서술(선택) 보너스 최대 +${POINTS.narrative}점`}
-        {data.targetActions && ` · 목표 행동(${data.targetActions}회) 안에 풀면 효율 보너스 +${POINTS.efficiency}점`}
-        <br />
-        범인을 맞히고 {data.targetActions ? "효율 보너스를 뺀 점수가 " : ""}{SOLVED_SCORE}점 이상이면 해결, 범인을 틀리면 나머지를 다 맞혀도 실패예요.
-      </p>
-
-      <fieldset className="mb-5">
-        <legend className="mb-2 font-medium">범인은 누구인가?</legend>
-        <div className="grid grid-cols-2 gap-2">
-          {data.suspects.map((s) => (
-            <label key={s.id} className={`cursor-pointer rounded-lg border-2 px-3 py-2 text-sm ${culpritId === s.id ? "border-red-600 bg-red-50 dark:bg-red-950/30" : "border-zinc-200 dark:border-zinc-700"}`}>
-              <input type="radio" name="culprit" className="sr-only" checked={culpritId === s.id} onChange={() => setCulpritId(s.id)} />
-              {s.name}
-            </label>
-          ))}
-        </div>
-      </fieldset>
-
-      {data.quiz.map((q, qi) => (
-        <fieldset key={qi} className="mb-5">
-          <legend className="mb-2 font-medium">{q.question}</legend>
-          <div className="space-y-1.5">
-            {q.options.map((o, oi) => (
-              <label key={oi} className="flex cursor-pointer items-center gap-2 text-sm">
-                <input type="radio" name={`q${qi}`} checked={answers[qi] === oi} onChange={() => setAnswers((a) => a.map((v, i) => (i === qi ? oi : v)))} className="accent-red-600" />
-                {o}
-              </label>
-            ))}
-          </div>
-        </fieldset>
-      ))}
-
-      <fieldset className="mb-5">
-        <legend className="mb-1 font-medium">결정적 증거 (최대 {MAX_EVIDENCE}개)</legend>
-        <p className="mb-2 text-xs text-zinc-500">범행을 증명하는 데 가장 중요한 단서를 고르세요.</p>
-        {state.foundClues.length === 0 ? (
-          <p className="text-sm text-zinc-400">찾은 단서가 없어요.</p>
-        ) : (
-          <div className="space-y-1.5">
-            {state.foundClues.map((c) => {
-              const checked = evidence.includes(c.id);
-              return (
-                <label key={c.id} className="flex cursor-pointer items-center gap-2 text-sm">
-                  <input
-                    type="checkbox"
-                    checked={checked}
-                    disabled={!checked && evidence.length >= MAX_EVIDENCE}
-                    onChange={() => setEvidence((e) => (checked ? e.filter((x) => x !== c.id) : [...e, c.id]))}
-                    className="accent-red-600"
-                  />
-                  {c.name}
-                </label>
-              );
-            })}
-          </div>
-        )}
-      </fieldset>
-
-      {/* 서술은 선택이라 접어 둔다 (쓰던 글이 있으면 펼친다). 대본 사건(프롤로그)에는 없다 */}
-      {!data.scripted && (
-      <details open={!!narrative.trim() || undefined} className="mb-5 rounded-xl border border-zinc-200 p-3 dark:border-zinc-700">
-        <summary className="mb-1 cursor-pointer font-medium">
-          ✍️ 추리 서술 <span className="text-sm font-normal text-zinc-500">(선택 · 보너스 최대 +{POINTS.narrative}점)</span>
-        </summary>
-        <p className="mb-2 text-xs leading-relaxed text-zinc-500">
-          사건의 전말을 내 말로 정리해 보세요. 범인이 <b className="font-medium">언제·어떻게</b> 범행했는지, <b className="font-medium">왜</b> 그랬는지, 범인의 <b className="font-medium">알리바이가 왜 거짓인지</b>와 그 근거가 된 단서를 쓰면 점수가 올라가요. AI 가 사건의 진상과
-          비교해 채점해요. 문장력은 상관없어요.
-        </p>
-        {/* 가이드 사건(프롤로그): '추리 정리하기' 단계의 체크리스트를 쓰면서 볼 수 있게 */}
-        {checklist && (
-          <details open className="mb-2 rounded-lg bg-emerald-50 px-3 py-2 text-xs dark:bg-emerald-950/30">
-            <summary className="cursor-pointer font-semibold text-emerald-800 dark:text-emerald-200">🧭 서술 체크리스트</summary>
-            <p className="mt-1.5 whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{checklist}</p>
-          </details>
-        )}
-        {/* 수첩 메모는 옮겨 붙이지 않고 보기만. 서술은 직접 쓴다 */}
-        {notes.trim() && (
-          <details className="mb-2 rounded-lg bg-zinc-50 px-3 py-2 text-xs dark:bg-zinc-800/50">
-            <summary className="cursor-pointer font-semibold text-zinc-600 dark:text-zinc-300">📒 내 수첩 메모 보기</summary>
-            <p className="mt-1.5 max-h-40 overflow-y-auto whitespace-pre-wrap leading-relaxed text-zinc-700 dark:text-zinc-300">{notes.trim()}</p>
-          </details>
-        )}
-        <textarea
-          value={narrative}
-          onChange={(e) => onNarrative(e.target.value)}
-          rows={7}
-          maxLength={MAX_NARRATIVE}
-          placeholder={"예) ○○는 △시쯤 모두가 □□에 있는 틈을 타 …\n◇◇에 있었다는 말은 거짓이다. ☆☆ 기록에 그 시간 기록이 없기 때문이다 …"}
-          className="w-full resize-y rounded-lg border border-zinc-300 bg-white px-3 py-2 text-sm outline-none focus:border-red-500 dark:border-zinc-700 dark:bg-zinc-950"
-        />
-        <p className="mt-1 text-right text-xs text-zinc-400">
-          {narrative.length.toLocaleString()} / {MAX_NARRATIVE.toLocaleString()}
-          {!narrative.trim() && " · 비워 두어도 괜찮아요"}
-        </p>
-      </details>
-      )}
-
-      {error && <p className="mb-3 text-sm text-red-600">{error}</p>}
-      <button onClick={submit} disabled={!ready || pending} className="w-full rounded-xl bg-red-600 py-3 font-semibold text-white hover:bg-red-700 disabled:opacity-50">
-        {pending ? (narrative.trim() ? "AI 가 추리 서술을 채점하는 중..." : "제출 중...") : ready ? "제출하기" : "범인과 모든 질문의 답을 고르세요"}
-      </button>
-    </Modal>
   );
 }

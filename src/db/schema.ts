@@ -281,7 +281,7 @@ export const playSessions = pgTable(
     updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
     finishedAt: timestamp("finished_at", { withTimezone: true }),
   },
-  (t) => [index("play_sessions_user_idx").on(t.userId, t.updatedAt)],
+  (t) => [index("play_sessions_user_idx").on(t.userId, t.updatedAt), index("play_sessions_case_idx").on(t.caseId)],
 );
 
 // 대화 기록. thread 는 'narrator'(조사) 또는 용의자 id. 용의자끼리 기록을 공유하지 않는다
@@ -325,7 +325,7 @@ export const usageLogs = pgTable(
     costMicros: integer("cost_micros").notNull().default(0), // 실제 API 원가 (백만분의 1달러)
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("usage_logs_user_idx").on(t.userId, t.createdAt)],
+  (t) => [index("usage_logs_user_idx").on(t.userId, t.createdAt), index("usage_logs_session_idx").on(t.sessionId)],
 );
 
 // ───────────────────────── 이벤트 기록 (관리자용) ─────────────────────────
@@ -343,7 +343,7 @@ export const eventLogs = pgTable(
     detail: jsonb("detail").$type<Record<string, unknown>>(),
     createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
   },
-  (t) => [index("event_logs_created_idx").on(t.createdAt), index("event_logs_user_idx").on(t.userId, t.createdAt)],
+  (t) => [index("event_logs_created_idx").on(t.createdAt), index("event_logs_user_idx").on(t.userId, t.createdAt), index("event_logs_session_idx").on(t.sessionId)],
 );
 
 // ───────────────────────── 크레딧 내역 ─────────────────────────
@@ -363,6 +363,7 @@ export const creditLedger = pgTable(
   },
   (t) => [
     index("credit_ledger_user_idx").on(t.userId, t.createdAt),
+    index("credit_ledger_session_idx").on(t.sessionId),
     // 가입 보너스는 한 사람에게 한 번만 (동시에 두 번 인증돼도 두 번 지급되지 않게)
     uniqueIndex("credit_ledger_signup_bonus_once").on(t.userId).where(sql`${t.reason} = 'signup_bonus'`),
   ],
