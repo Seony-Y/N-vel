@@ -1,16 +1,15 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter, useSearchParams } from "next/navigation";
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 import { AuthCard, Field, FormError, SubmitButton } from "@/components/auth/AuthCard";
 import { GoogleButton } from "@/components/auth/GoogleButton";
 import { ResendVerification } from "@/components/auth/ResendVerification";
 import { authClient } from "@/lib/auth-client";
-import { authErrorMessage, safeRedirect, VERIFIED_CALLBACK } from "@/lib/auth-rules";
+import { authErrorMessage, safeRedirect } from "@/lib/auth-rules";
 
 export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
-  const router = useRouter();
   const params = useSearchParams();
   const next = safeRedirect(params.get("next"));
   const notice = params.get("reset") === "done" ? "비밀번호를 바꿨어요. 새 비밀번호로 로그인하세요." : null;
@@ -25,7 +24,7 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
     setError(null);
 
     const email = String(form.get("email"));
-    const { error } = await authClient.signIn.email({ email, password: String(form.get("password")), callbackURL: VERIFIED_CALLBACK });
+    const { error } = await authClient.signIn.email({ email, password: String(form.get("password")), callbackURL: next });
 
     if (error) {
       setUnverified(error.code === "EMAIL_NOT_VERIFIED" ? email : null);
@@ -33,8 +32,7 @@ export function LoginForm({ googleEnabled }: { googleEnabled: boolean }) {
       setPending(false);
       return;
     }
-    router.replace(next);
-    router.refresh();
+    // 성공하면 better-auth 가 callbackURL 로 이동시킨다. 여기서 또 이동하면 사건이 두 번 시작될 수 있다
   }
 
   return (
