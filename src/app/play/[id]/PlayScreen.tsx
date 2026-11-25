@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useEffectEvent, useMemo, useRef, useState, useSyncExternalStore } from "react";
+import { announceCredits } from "@/components/live-credits";
 import { useLeaveGuard } from "@/components/useLeaveGuard";
 import type { PublicCase, PublicClue, PublicMessage, PublicState } from "@/lib/game/public";
 import { STATEMENT_PREFIX } from "@/lib/game/statements";
@@ -77,7 +78,11 @@ export function PlayScreen({
   const [leaveTo, setLeaveTo] = useState<string | null>(null); // 저장 안 한 메모가 있는데 나가려던 주소
   const [narrative, setNarrative] = useState(""); // 추리 서술 초안. 제출 창을 닫았다 열어도 남도록 여기에 둔다
   const [toast, setToast] = useState<string | null>(null);
-  const [credits, setCredits] = useState(initialCredits);
+  const [credits, setCreditsHere] = useState(initialCredits);
+  const setCredits = (n: number) => {
+    setCreditsHere(n);
+    if (!guest) announceCredits(n); // 상단 메뉴의 잔액도 같이
+  };
   // 대화 상대마다 AI 가 마지막으로 추천한 다음 행동. 없으면 기본 추천을 보여 준다
   const [suggested, setSuggested] = useState<Record<string, string[]>>({});
   const model = models.find((m) => m.id === state.model) ?? models.find((m) => m.id === defaultModel) ?? models[0];

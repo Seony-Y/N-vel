@@ -2,6 +2,7 @@
 
 import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
+import { useLiveCredits } from "@/components/live-credits";
 import { authClient } from "@/lib/auth-client";
 
 /** 로그인 안 했을 때: 로그인 / 회원가입 */
@@ -26,7 +27,8 @@ const MENU = [
 ];
 
 /** 로그인했을 때: "OO님 ▾" 을 누르면 메뉴가 열린다. 바깥을 누르거나 Esc 로 닫힌다 */
-export function UserMenu({ name, credits }: { name: string; credits: number }) {
+export function UserMenu({ name, credits: serverCredits }: { name: string; credits: number }) {
+  const credits = useLiveCredits(serverCredits);
   const [open, setOpen] = useState(false);
   const ref = useRef<HTMLDivElement>(null);
 
