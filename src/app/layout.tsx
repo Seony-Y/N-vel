@@ -3,9 +3,13 @@ import { Suspense } from "react";
 import { SiteFooter } from "@/components/SiteFooter";
 import "./globals.css";
 
+const description = "AI 용의자를 심문하고 단서를 모아 범인을 지목하는 추리 게임";
+
 export const metadata: Metadata = {
+  metadataBase: new URL(process.env.BETTER_AUTH_URL || "http://localhost:3001"),
   title: "N-vel",
-  description: "AI 용의자를 심문하고 단서를 모아 범인을 지목하는 추리 게임",
+  description,
+  openGraph: { title: "N-vel", description, type: "website", siteName: "N-vel", locale: "ko_KR" },
 };
 
 export default function RootLayout({ children }: LayoutProps<"/">) {

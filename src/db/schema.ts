@@ -375,7 +375,7 @@ export const aiQuota = pgTable(
   "ai_quota",
   {
     userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
-    kind: text("kind", { enum: ["review", "grade"] }).notNull(),
+    kind: text("kind", { enum: ["review", "grade", "report"] }).notNull(),
     day: text("day").notNull(), // 한국 날짜 YYYY-MM-DD
     count: integer("count").notNull().default(0),
   },
@@ -387,6 +387,42 @@ export const bonusClaims = pgTable("bonus_claims", {
   emailHash: text("email_hash").primaryKey(),
   createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
 });
+
+// ───────────────────────── 신고·평가 ─────────────────────────
+// 사건 신고. 처리 안 된 신고는 한 사람이 사건마다 하나만
+export const caseReports = pgTable(
+  "case_reports",
+  {
+    id: bigint("id", { mode: "number" }).primaryKey().generatedAlwaysAsIdentity(),
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    reason: text("reason", { enum: ["real_person", "harmful", "sexual", "hate", "copyright", "other"] }).notNull(),
+    message: text("message").notNull().default(""),
+    status: text("status", { enum: ["pending", "resolved"] }).notNull().default("pending"),
+    adminId: text("admin_id").references(() => user.id, { onDelete: "set null" }),
+    createdAt: timestamp("created_at", { withTimezone: true }).notNull().defaultNow(),
+    resolvedAt: timestamp("resolved_at", { withTimezone: true }),
+  },
+  (t) => [
+    index("case_reports_status_idx").on(t.status, t.createdAt),
+    uniqueIndex("case_reports_one_pending").on(t.caseId, t.userId).where(sql`${t.status} = 'pending'`),
+  ],
+);
+
+// 끝낸 사람의 평가. 별점은 평균만 공개하고, 의견은 만든 사람과 관리자만 본다
+export const caseRatings = pgTable(
+  "case_ratings",
+  {
+    caseId: uuid("case_id").notNull().references(() => cases.id, { onDelete: "cascade" }),
+    userId: text("user_id").notNull().references(() => user.id, { onDelete: "cascade" }),
+    stars: integer("stars").notNull(), // 1~5
+    level: text("level", { enum: ["easy", "ok", "hard"] }), // 난이도 느낌
+    length: text("length", { enum: ["short", "ok", "long"] }), // 길이 느낌
+    comment: text("comment").notNull().default(""),
+    updatedAt: timestamp("updated_at", { withTimezone: true }).notNull().defaultNow(),
+  },
+  (t) => [primaryKey({ columns: [t.caseId, t.userId] })],
+);
 
 // ───────────────────────── 이탈 지점 집계 ─────────────────────────
 // 비회원 프롤로그에서 단계마다 몇 번 도달했는지. 사람을 구별하는 정보는 남기지 않고 횟수만 센다

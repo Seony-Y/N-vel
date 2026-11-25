@@ -1,4 +1,5 @@
 import { and, asc, desc, eq, inArray, isNull, sql } from "drizzle-orm";
+import { cache } from "react";
 import { db } from "@/db";
 import { caseFavorites, cases, playSessions } from "@/db/schema";
 
@@ -12,6 +13,9 @@ const listCols = {
   estimatedMinutes: cases.estimatedMinutes,
   coverImage: cases.coverImage,
   isOfficial: cases.isOfficial,
+  // 하위 질의 안에서는 바깥 표의 이름을 직접 적는다 (표가 하나인 조회에서는 drizzle 이 표 이름을 떼어 버린다)
+  stars: sql<number | null>`(select round(avg(r.stars), 1)::float from case_ratings r where r.case_id = "cases"."id")`,
+  ratings: sql<number>`(select count(*)::int from case_ratings r where r.case_id = "cases"."id")`,
   // 가이드·대본은 공식 사건에서만 쓴다
   hasGuide: sql<boolean>`${cases.isOfficial} and jsonb_array_length(${cases.guide}) > 0`,
   isFree: sql<boolean>`${cases.isOfficial} and jsonb_array_length(${cases.script}) > 0`, // 대본 사건: AI 를 쓰지 않아 무료
@@ -32,6 +36,16 @@ export async function listPublicCases(sort: CaseSort = "recommended") {
   }[sort];
   return db.select(listCols).from(cases).where(and(eq(cases.isPublic, true), isNull(cases.hiddenAt))).orderBy(...order).limit(60);
 }
+
+/** 링크 미리보기에 쓰는 공개 사건 정보. 비공개·숨김이면 null */
+export const publicCaseSummary = cache(async (id: string) => {
+  const [row] = await db
+    .select({ title: cases.title, tagline: cases.tagline, difficulty: cases.difficulty, estimatedMinutes: cases.estimatedMinutes, rating: cases.rating })
+    .from(cases)
+    .where(and(eq(cases.id, id), eq(cases.isPublic, true), isNull(cases.hiddenAt)))
+    .catch(() => []); // id 가 uuid 형식이 아니면 없음으로
+  return row ?? null;
+});
 
 /** 프롤로그: 가이드가 있는 공개 공식 사건 */
 export async function findPrologue() {

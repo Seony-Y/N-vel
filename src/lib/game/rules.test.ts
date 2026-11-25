@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
 import type { Accusation } from "@/types/db";
+import { shareText } from "../share";
 import { fixture, playing } from "./fixture";
 import { nextStep } from "./next-step";
 import { breakpointFor, combination, discoverable, grade, limitPerTurn, openableLocks, spokenWithoutTag, stripFakePresent, tellableBy, validateRequested } from "./rules";
@@ -187,4 +188,11 @@ test("설명에 시각(17:00)이 있어도 다른 물건을 말한 것을 그 �
   const f = fixture("corner-clock");
   const said = "꽃 상자들을 하나씩 들추던 당신의 손끝에 '구본석'이라고 적힌 배달 상자가 걸린다. 상자를 열자 흰 백합 꽃다발이 나오고, 그 아래 바닥에 얇은 손수건으로 싸인 물건이 눌려 있다. 손수건을 풀자 은빛 테두리의 '은하 회중시계'가 모습을 드러낸다.";
   assert.ok(!codes(spokenWithoutTag(said, f.clues)).includes("C4"));
+});
+
+test("공유 글에 정답이 들어가지 않는다", () => {
+  const g = grade(full, solver(), perfect("", "miss"));
+  const text = shareText({ title: full.case.title, endingLabel: "✅ 해결", score: g.score, marks: g.items.map((i) => i.ok), actions: 10, hints: 0, url: "https://x/cases/1" });
+  for (const secret of ["정민호", "북엔드", "표절", "테라스", ...full.clues.map((c) => c.name)]) assert.ok(!text.includes(secret), secret);
+  assert.ok(text.includes("🟩"));
 });

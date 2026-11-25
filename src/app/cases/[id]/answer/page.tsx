@@ -6,6 +6,8 @@ import { AnswerSheet } from "@/components/AnswerSheet";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
 import { isAdmin, requireUserId } from "@/lib/auth";
+import { ratingSummary } from "@/lib/feedback";
+import { LENGTHS, LEVELS } from "@/lib/feedback-config";
 import { loadCase } from "@/lib/game/load";
 
 export const metadata: Metadata = { title: "정답지 | N-vel" };
@@ -30,6 +32,9 @@ async function Answer({ params }: { params: PageProps<"/cases/[id]/answer">["par
   const owner = full.case.ownerId === userId;
   if (!owner && !(await isAdmin(userId))) notFound();
 
+  const r = await ratingSummary(id);
+  const tally = (labels: Record<string, string>, n: Record<string, number | undefined>) => Object.entries(labels).map(([k, label]) => `${label} ${n[k] ?? 0}`).join(" · ");
+
   return (
     <main className="mx-auto w-full max-w-4xl space-y-4 px-4 py-6 sm:px-6">
       <div className="flex flex-wrap items-center justify-between gap-2">
@@ -49,6 +54,27 @@ async function Answer({ params }: { params: PageProps<"/cases/[id]/answer">["par
         </div>
       </div>
       <p className="rounded-xl bg-amber-50 px-4 py-2.5 text-sm text-amber-800 dark:bg-amber-950/40 dark:text-amber-200">⚠️ 스포일러가 담긴 화면이에요. 플레이어에게 공유하지 마세요.</p>
+      <section className="rounded-2xl border border-zinc-200 bg-white p-5 text-sm dark:border-zinc-800 dark:bg-zinc-900">
+        <h2 className="font-semibold">⭐ 받은 평가</h2>
+        {r.count === 0 ? (
+          <p className="mt-2 text-zinc-500">아직 평가가 없어요.</p>
+        ) : (
+          <>
+            <p className="mt-2">
+              ★ {r.stars?.toFixed(1)} ({r.count}명)
+            </p>
+            <p className="mt-1 text-zinc-500">난이도: {tally(LEVELS, r.level)}</p>
+            <p className="text-zinc-500">길이: {tally(LENGTHS, r.length)}</p>
+            <ul className="mt-3 space-y-1.5">
+              {r.comments.map((c, i) => (
+                <li key={i} className="rounded-lg bg-zinc-50 px-3 py-2 dark:bg-zinc-800/50">
+                  ★ {c.stars} · {c.comment}
+                </li>
+              ))}
+            </ul>
+          </>
+        )}
+      </section>
       <AnswerSheet full={full} />
     </main>
   );

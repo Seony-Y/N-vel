@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Loading } from "@/components/Loading";
+import { ShareResult } from "@/components/ShareResult";
 import { SIGNUP_BONUS } from "@/lib/credits-config";
 import type { PublicCase, PublicMessage, PublicState } from "@/lib/game/public";
 import { ENDINGS } from "@/lib/game/endings";
@@ -46,7 +47,7 @@ export function GuestPlay({ data, fresh, next }: { data: PublicCase; fresh: Publ
     setRound((n) => n + 1);
   }
 
-  if (done) return <GuestResultView done={done} next={next} onAgain={again} />;
+  if (done) return <GuestResultView title={data.title} done={done} next={next} onAgain={again} />;
   if (!start) return <Loading text="사건 파일을 펼치는 중..." />;
   return (
     <PlayScreen
@@ -70,7 +71,7 @@ export function GuestPlay({ data, fresh, next }: { data: PublicCase; fresh: Publ
   );
 }
 
-function GuestResultView({ done, next, onAgain }: { done: GuestDone; next: Next; onAgain: () => void }) {
+function GuestResultView({ title, done, next, onAgain }: { title: string; done: GuestDone; next: Next; onAgain: () => void }) {
   const { result } = done;
   const signup = `/signup${next ? `?next=${encodeURIComponent(`/cases/${next.id}?start=1`)}` : ""}`;
   return (
@@ -111,6 +112,15 @@ function GuestResultView({ done, next, onAgain }: { done: GuestDone; next: Next;
         <p className="mt-3 whitespace-pre-wrap leading-relaxed">{result.reveal.truth}</p>
       </details>
 
+      <ShareResult
+        path={`/cases/${done.caseId}`}
+        title={title}
+        endingLabel={`${ENDINGS[result.ending].icon} ${ENDINGS[result.ending].label}`}
+        score={result.ending === "gaveup" ? null : result.score}
+        marks={result.items.map((it) => it.ok)}
+        actions={done.save.actionsUsed}
+        hints={done.save.hintsUsed}
+      />
       <div className="flex gap-2 text-sm">
         <button onClick={onAgain} className="flex-1 rounded-xl border border-zinc-300 py-3 font-medium hover:bg-zinc-100 dark:border-zinc-700 dark:hover:bg-zinc-800">
           다시 하기

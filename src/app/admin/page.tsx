@@ -5,6 +5,7 @@ import { ApiBudget } from "@/components/admin/ApiBudget";
 import { CreditRequests } from "@/components/admin/CreditRequests";
 import { DropOff } from "@/components/admin/DropOff";
 import { HideCase } from "@/components/admin/HideCase";
+import { Reports } from "@/components/admin/Reports";
 import { EventsPanel } from "@/components/admin/EventsPanel";
 import { Panel, PeriodTabs, pct, StatTile, Table, Td } from "@/components/admin/ui";
 import { SiteHeader } from "@/components/SiteHeader";
@@ -13,6 +14,7 @@ import { formatUsd } from "@/lib/ai/models";
 import { apiBudget, dropOff, moderationCases, overview, perCase, perUser, recentEvents } from "@/lib/admin/stats";
 import { requireAdmin } from "@/lib/auth";
 import { pendingRequests } from "@/lib/credit-requests";
+import { pendingReports, ratingsByCase } from "@/lib/feedback";
 import { funnel } from "@/lib/funnel";
 
 export const metadata: Metadata = { title: "관리자 | N-vel" };
@@ -31,7 +33,7 @@ export default function AdminPage({ searchParams }: PageProps<"/admin">) {
 async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["searchParams"] }) {
   await requireAdmin("/admin");
   const days = Math.min(365, Math.max(1, Number((await searchParams).days) || 30));
-  const [o, users, cs, events, budget, requests, published, drops, guest] = await Promise.all([overview(days), perUser(days), perCase(days), recentEvents(30), apiBudget(), pendingRequests(), moderationCases(), dropOff(days), funnel(days)]);
+  const [o, users, cs, events, budget, requests, published, drops, guest, reports, ratings] = await Promise.all([overview(days), perUser(days), perCase(days), recentEvents(30), apiBudget(), pendingRequests(), moderationCases(), dropOff(days), funnel(days), pendingReports(), ratingsByCase()]);
   const issues = (o.events.refusal ?? 0) + (o.events.rejected_clue ?? 0) + (o.events.truncated ?? 0);
 
   return (
@@ -50,6 +52,10 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
         <StatTile label="오류" value={String(o.events.error ?? 0)} sub={`거절·규칙 위반·잘림 ${issues}`} alert={(o.events.error ?? 0) > 0} />
       </div>
 
+      <Panel title={`신고${reports.length ? ` (${reports.length})` : ""}`}>
+        <Reports rows={reports} />
+      </Panel>
+
       <Panel title={`크레딧 요청${requests.length ? ` (${requests.length})` : ""}`}>
         <CreditRequests rows={requests} />
       </Panel>
@@ -59,6 +65,26 @@ async function Dashboard({ searchParams }: { searchParams: PageProps<"/admin">["
       </Panel>
 
       <DropOff rows={drops} guest={guest} />
+
+      <Panel title="사건 평가 (전체 기간)">
+        <Table head={["사건", "평가", "별점", "어려웠어요", "쉬웠어요", "길었어요", "짧았어요"]} empty={!ratings.length}>
+          {ratings.map((r) => (
+            <tr key={r.id}>
+              <Td>
+                <Link href={`/cases/${r.id}/answer`} className="font-medium hover:text-red-600">
+                  {r.title}
+                </Link>
+              </Td>
+              <Td num>{r.count}</Td>
+              <Td num>★ {r.stars.toFixed(1)}</Td>
+              <Td num>{r.hard}</Td>
+              <Td num>{r.easy}</Td>
+              <Td num>{r.long}</Td>
+              <Td num>{r.short}</Td>
+            </tr>
+          ))}
+        </Table>
+      </Panel>
 
       <Panel title="사건별">
         <Table head={["사건", "플레이", "제출", "포기", "해결률", "평균 점수", "평균 일치율", "평균 행동", "크레딧", "원가", "플레이당 원가"]} empty={!cs.length}>

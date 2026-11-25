@@ -13,6 +13,8 @@ export const REVIEW_CREDITS = 200;
 export const MAX_REVIEWS_PER_DAY = 10;
 /** 서술 채점: 하루 최대 횟수 (크레딧을 받지 않으므로) */
 export const MAX_GRADES_PER_DAY = 10;
+/** 사건 신고: 하루 최대 횟수 */
+export const MAX_REPORTS_PER_DAY = 10;
 /** 한 계정이 24시간 동안 쓸 수 있는 AI 원가 (백만분의 1달러). 관리자는 제외 */
 const DAILY_COST_LIMIT_MICROS = 3_000_000;
 

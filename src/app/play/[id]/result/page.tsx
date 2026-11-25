@@ -3,9 +3,12 @@ import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Suspense } from "react";
 import { CaseActions } from "@/components/CaseActions";
+import { RateCase } from "@/components/RateCase";
+import { ShareResult } from "@/components/ShareResult";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
 import { requireUserId } from "@/lib/auth";
+import { myRating } from "@/lib/feedback";
 import { findNextCase } from "@/lib/game/catalog";
 import { loadCase, loadSession } from "@/lib/game/load";
 import { ENDINGS } from "@/lib/game/endings";
@@ -80,7 +83,7 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
   if (session.status !== "finished") redirect(`/play/${id}`);
 
   // 진상 공개는 사건을 끝낸 본인에게만. 사건이 비공개로 바뀌었어도 결과는 볼 수 있다
-  const [full, next] = await Promise.all([loadCase(session.caseId), findNextCase(userId, session.caseId)]);
+  const [full, next, rating] = await Promise.all([loadCase(session.caseId), findNextCase(userId, session.caseId), myRating(userId, session.caseId)]);
   if (!full) notFound();
   const c = full.case;
   // 포기한 수사는 제출한 추리가 없다
@@ -135,6 +138,8 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
           <span className="shrink-0 text-xl" aria-hidden>›</span>
         </Link>
       )}
+
+      {c.ownerId !== userId && <RateCase caseId={c.id} initial={rating} />}
 
       {/* 내 추리 vs 정답 */}
       {g && (
@@ -214,6 +219,18 @@ async function Result({ params }: { params: PageProps<"/play/[id]/result">["para
       </section>
 
       <div className="space-y-2">
+        {c.isPublic && !c.hiddenAt && (
+          <ShareResult
+            path={`/cases/${c.id}`}
+            title={c.title}
+            endingLabel={`${ENDINGS[ending].icon} ${ENDINGS[ending].label}`}
+            score={g?.score ?? null}
+            marks={g?.items.filter((it) => it.kind !== "efficiency").map((it) => it.ok) ?? []}
+            actions={session.actionsUsed}
+            hints={session.hintsUsed}
+            hard={session.mode === "hard"}
+          />
+        )}
         {/* 다시 도전 (결과 보기는 지금 화면이므로 다시 도전만) */}
         <CaseActions caseId={c.id} ongoingId={null} lastFinishedId={null} loggedIn retryOnly />
         <div className="flex gap-2">

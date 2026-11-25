@@ -51,6 +51,11 @@ export function CaseCard({ c, progress, loggedIn, favorite = false }: { c: CaseL
           <div className="mt-3 flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-zinc-500">
             <Difficulty value={c.difficulty} />
             <span>약 {c.estimatedMinutes}분</span>
+            {c.ratings > 0 && (
+              <span>
+                ★ {Number(c.stars).toFixed(1)} ({c.ratings})
+              </span>
+            )}
             {c.warningTags.map((t) => (
               <span key={t} className="text-zinc-400">
                 #{t}

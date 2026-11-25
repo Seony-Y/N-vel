@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Suspense } from "react";
@@ -5,17 +6,27 @@ import { Difficulty, RATING_LABEL } from "@/components/CaseCard";
 import { CaseActions } from "@/components/CaseActions";
 import { HideCase } from "@/components/admin/HideCase";
 import { FavoriteButton } from "@/components/FavoriteButton";
+import { ReportCase } from "@/components/ReportCase";
 import { SandboxedHtml } from "@/components/SandboxedHtml";
 import { SiteHeader } from "@/components/SiteHeader";
 import { Loading } from "@/components/Loading";
 import { CHAT_MODELS, DEFAULT_CHAT_MODEL } from "@/lib/ai/models";
 import { getUserId, isAdmin } from "@/lib/auth";
 import { getBalance } from "@/lib/credits";
-import { myFavoriteIds, mySessionsFor } from "@/lib/game/catalog";
+import { myFavoriteIds, mySessionsFor, publicCaseSummary } from "@/lib/game/catalog";
 import { endingText } from "@/lib/game/endings";
 import { canPlay, loadCase } from "@/lib/game/load";
 import { publicCase } from "@/lib/game/public";
 import { EFFICIENCY_HALF_RATIO, POINTS } from "@/lib/game/rules";
+
+/** 링크 미리보기. 공개된 사건만 (비공개·숨긴 사건의 제목이 새지 않게) */
+export async function generateMetadata({ params }: PageProps<"/cases/[id]">): Promise<Metadata> {
+  const { id } = await params;
+  const c = await publicCaseSummary(id);
+  if (!c) return { title: "사건 | N-vel" };
+  const description = c.tagline || "AI 용의자를 심문하고 범인을 지목하세요";
+  return { title: `${c.title} | N-vel`, description, openGraph: { title: c.title, description, type: "website", siteName: "N-vel", locale: "ko_KR" }, twitter: { card: "summary_large_image" } };
+}
 
 export default function CasePage({ params, searchParams }: PageProps<"/cases/[id]">) {
   return (
@@ -68,7 +79,18 @@ async function CaseDetail({ params, searchParams }: Pick<PageProps<"/cases/[id]"
       )}
       <article className="overflow-hidden rounded-2xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
         {c.introHtml ? (
-          <SandboxedHtml title={`${c.title} 소개`} code={c.introHtml} className="h-80 w-full border-0" />
+          <>
+            <SandboxedHtml title={`${c.title} 소개`} code={c.introHtml} className="h-80 w-full border-0" />
+            {/* 꾸민 도입부가 있어도 제목과 이용 등급은 늘 보이게 */}
+            <div className="px-6 pt-6">
+              <div className="flex gap-1.5 text-[11px] font-semibold">
+                {c.isOfficial && <span className="rounded bg-red-600 px-1.5 py-0.5 text-white">공식</span>}
+                <span className="rounded bg-zinc-200 px-1.5 py-0.5 dark:bg-zinc-700">{RATING_LABEL[c.rating]}</span>
+              </div>
+              <h1 className="mt-2 text-2xl font-bold">{c.title}</h1>
+              {c.tagline && <p className="mt-1 text-sm text-zinc-500">{c.tagline}</p>}
+            </div>
+          </>
         ) : (
           <div className="bg-gradient-to-br from-zinc-800 via-zinc-900 to-red-950 px-6 py-10 text-white">
             <div className="flex gap-1.5 text-[11px] font-semibold">
@@ -117,7 +139,11 @@ async function CaseDetail({ params, searchParams }: Pick<PageProps<"/cases/[id]"
             <h2 className="mb-2 text-sm font-semibold text-zinc-500">용의자</h2>
             <ul className="grid gap-2 sm:grid-cols-2">
               {c.suspects.map((s) => (
-                <li key={s.id} className="rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                <li key={s.id} className="flow-root rounded-xl border border-zinc-200 p-3 dark:border-zinc-800">
+                  {s.portrait && (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={s.portrait} alt="" referrerPolicy="no-referrer" loading="lazy" className="float-left mr-3 h-16 w-16 rounded-lg object-cover" />
+                  )}
                   <div className="font-medium">
                     {s.name}
                     {s.age && <span className="ml-1 text-sm font-normal text-zinc-400">{s.age}세</span>}
@@ -165,6 +191,11 @@ async function CaseDetail({ params, searchParams }: Pick<PageProps<"/cases/[id]"
                 ))}
               </ul>
             </section>
+          )}
+          {!isOwner && (
+            <div className="border-t border-zinc-100 pt-4 dark:border-zinc-800">
+              <ReportCase caseId={id} loggedIn={!!userId} />
+            </div>
           )}
         </div>
       </article>
